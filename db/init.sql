@@ -1,0 +1,12 @@
+
+-- SCHEMAS
+
+CREATE SCHEMA providers AUTHORIZATION pguser;
+
+CREATE SCHEMA files AUTHORIZATION pguser;
+
+CREATE SCHEMA public AUTHORIZATION pg_database_owner;
+
+CREATE SCHEMA system AUTHORIZATION pguser;
+
+-- TABLES
