@@ -47,6 +47,17 @@ func (c *cacheMiddleware) DeleteBag(ctx context.Context, bagID string) (err erro
 	return
 }
 
+<<<<<<< Updated upstream
+=======
+func (c *cacheMiddleware) MarkBagAsPaid(ctx context.Context, bagID string, userAddr string, storageContract string) error {
+	return c.svc.MarkBagAsPaid(ctx, bagID, userAddr, storageContract)
+}
+
+func (c *cacheMiddleware) GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error) {
+	return c.svc.GetUnpaidBags(ctx, userAddr)
+}
+
+>>>>>>> Stashed changes
 func NewCacheMiddleware(
 	svc Files,
 ) Files {

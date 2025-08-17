@@ -18,12 +18,14 @@ import (
 	"github.com/xssnick/tonutils-go/ton"
 	"github.com/xssnick/tonutils-go/ton/wallet"
 
+	tonclient "mytonstorage-backend/pkg/clients/ton"
+	tonstorage "mytonstorage-backend/pkg/clients/ton-storage"
 	"mytonstorage-backend/pkg/httpServer"
 	filesRepository "mytonstorage-backend/pkg/repositories/files"
+	providersRepository "mytonstorage-backend/pkg/repositories/providers"
 	"mytonstorage-backend/pkg/services/auth"
 	filesService "mytonstorage-backend/pkg/services/files"
 	providersService "mytonstorage-backend/pkg/services/providers"
-	tonstorage "mytonstorage-backend/pkg/ton-storage"
 	"mytonstorage-backend/pkg/workers"
 	"mytonstorage-backend/pkg/workers/cleaner"
 )
@@ -127,11 +129,22 @@ func run() (err error) {
 	filesRepo := filesRepository.NewRepository(connPool)
 	filesRepo = filesRepository.NewMetrics(dbRequestsCount, dbRequestsDuration, filesRepo)
 
+<<<<<<< Updated upstream
 	// Workers
 	cleanerWorker := cleaner.NewWorker(filesRepo, config.System.StoreHistoryDays, logger)
 	cleanerWorker = cleaner.NewMetrics(workersRunCount, workersRunDuration, cleanerWorker)
+=======
+	providerRepo := providersRepository.NewRepository(connPool)
+	providerRepo = providersRepository.NewMetrics(dbRequestsCount, dbRequestsDuration, providerRepo)
+>>>>>>> Stashed changes
 
 	// Clients
+	tonContractsClient, err := tonclient.NewClient(context.Background(), config.TON.ConfigURL, logger)
+	if err != nil {
+		logger.Error("failed to create TON client", slog.String("error", err.Error()))
+		return
+	}
+
 	_, providerClient, err := newProviderClient(context.Background(), config.TON.ConfigURL, config.System.ADNLPort, config.System.Key)
 	if err != nil {
 		logger.Error("failed to create provider client", slog.String("error", err.Error()))
@@ -144,6 +157,16 @@ func run() (err error) {
 	}
 	storage := tonstorage.NewClient(config.TONStorage.BaseURL, config.TONStorage.BagsDirForStorage, &creds)
 
+<<<<<<< Updated upstream
+=======
+	// Workers
+	cleanerWorker := cleaner.NewWorker(filesRepo, config.System.StoreHistoryDays, logger)
+	cleanerWorker = cleaner.NewMetrics(workersRunCount, workersRunDuration, cleanerWorker)
+
+	filesWorker := filesworker.NewWorker(filesRepo, providerRepo, storage, providerClient, tonContractsClient, config.System.StoreHistoryDays, logger)
+	filesWorker = filesworker.NewMetrics(workersRunCount, workersRunDuration, filesWorker)
+
+>>>>>>> Stashed changes
 	// Services
 	providersSvc := providersService.NewService(providerClient, storage, config.System.MaxAllowedSpanDays, logger)
 

@@ -4,6 +4,14 @@ import (
 	"github.com/xssnick/tonutils-go/ton/wallet"
 )
 
+<<<<<<< Updated upstream
+=======
+type PaidBagRequest struct {
+	BagID           string `json:"bag_id"`
+	StorageContract string `json:"storage_contract"`
+}
+
+>>>>>>> Stashed changes
 type BagInfo struct {
 	BagID       string `json:"bag_id"`
 	Description string `json:"description"`
@@ -13,6 +21,14 @@ type BagInfo struct {
 	Peers       int    `json:"peers"`
 }
 
+type UserBagInfo struct {
+	BagID           string `json:"bag_id"`
+	UserAddress     string `json:"user_address"`
+	StorageContract string `json:"storage_contract"`
+	CreatedAt       int64  `json:"created_at"`
+	UpdatedAt       int64  `json:"updated_at"`
+}
+
 type LoginInfo struct {
 	Address   string                 `json:"address"`
 	Proof     wallet.TonConnectProof `json:"proof"`
@@ -20,7 +36,7 @@ type LoginInfo struct {
 }
 
 type ProviderShort struct {
-	Address       string `json:"address"`
+	Pubkey        string `json:"address"`
 	PricePerMBDay uint64 `json:"price_per_mb_day"`
 	MaxSpan       uint64 `json:"max_span"`
 }
@@ -39,10 +55,10 @@ type ProviderContractData struct {
 }
 
 type InitStorageContractRequest struct {
-	BagID        string            `json:"bag_id"`
-	OwnerAddress string            `json:"owner_address"`
-	Amount       uint64            `json:"amount"`
-	Providers    []ProviderAddress `json:"providers"`
+	BagID         string   `json:"bag_id"`
+	OwnerAddress  string   `json:"owner_address"`
+	Amount        uint64   `json:"amount"`
+	ProvidersKeys []string `json:"providers"`
 }
 
 type ProviderOffer struct {
@@ -57,11 +73,6 @@ type ProviderOffer struct {
 type ProviderRatesResponse struct {
 	Offers   []ProviderOffer   `json:"offers"`
 	Declines []ProviderDecline `json:"declines,omitempty"`
-}
-
-type ProviderAddress struct {
-	PublicKey string `json:"public_key"`
-	Address   string `json:"address"`
 }
 
 type ProviderDecline struct {

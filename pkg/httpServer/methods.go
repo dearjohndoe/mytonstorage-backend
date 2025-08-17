@@ -14,7 +14,6 @@ import (
 
 func (h *handler) login(c *fiber.Ctx) error {
 	log := h.logger.With(
-		slog.String("method", "login"),
 		slog.String("method", c.Method()),
 		slog.String("url", c.OriginalURL()),
 	)
@@ -27,8 +26,7 @@ func (h *handler) login(c *fiber.Ctx) error {
 
 	sessionID, err := h.auth.Login(c.Context(), info)
 	if err != nil {
-		log.Error("failed to login", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusInternalServerError, "failed to login")
+		return errorHandler(c, err)
 	}
 
 	c.Cookie(&fiber.Cookie{
@@ -49,7 +47,6 @@ func (h *handler) getData(c *fiber.Ctx) error {
 
 func (h *handler) uploadFiles(c *fiber.Ctx) (err error) {
 	log := h.logger.With(
-		slog.String("method", "uploadFile"),
 		slog.String("method", c.Method()),
 		slog.String("url", c.OriginalURL()),
 	)
@@ -73,8 +70,7 @@ func (h *handler) uploadFiles(c *fiber.Ctx) (err error) {
 
 	bagid, err := h.files.AddFiles(c.Context(), description, files)
 	if err != nil {
-		log.Error("failed to add files", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusInternalServerError, "failed to upload files")
+		return errorHandler(c, err)
 	}
 
 	return c.JSON(fiber.Map{
@@ -84,7 +80,6 @@ func (h *handler) uploadFiles(c *fiber.Ctx) (err error) {
 
 func (h *handler) bagInfo(c *fiber.Ctx) error {
 	log := h.logger.With(
-		slog.String("method", "bagInfo"),
 		slog.String("method", c.Method()),
 		slog.String("url", c.OriginalURL()),
 	)
@@ -97,8 +92,7 @@ func (h *handler) bagInfo(c *fiber.Ctx) error {
 
 	info, err := h.files.BagInfo(c.Context(), bagID)
 	if err != nil {
-		log.Error("failed to get bag info", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusInternalServerError, "")
+		return errorHandler(c, err)
 	}
 
 	return c.JSON(info)
@@ -106,7 +100,6 @@ func (h *handler) bagInfo(c *fiber.Ctx) error {
 
 func (h *handler) deleteBag(c *fiber.Ctx) error {
 	log := h.logger.With(
-		slog.String("method", "deleteBag"),
 		slog.String("method", c.Method()),
 		slog.String("url", c.OriginalURL()),
 	)
@@ -119,16 +112,66 @@ func (h *handler) deleteBag(c *fiber.Ctx) error {
 
 	err := h.files.DeleteBag(c.Context(), bagID)
 	if err != nil {
-		log.Error("failed to delete bag", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusInternalServerError, "failed to delete bag")
+		return errorHandler(c, err)
 	}
 
 	return okHandler(c)
 }
 
+<<<<<<< Updated upstream
+=======
+func (h *handler) getUnpaid(c *fiber.Ctx) error {
+	log := h.logger.With(
+		slog.String("method", c.Method()),
+		slog.String("url", c.OriginalURL()),
+	)
+
+	address, ok := c.Context().UserValue("address").(string)
+	if !ok || address == "" {
+		log.Error("no user address after successful auth")
+		return fiber.NewError(fiber.StatusInternalServerError, "")
+	}
+
+	unpaidBags, err := h.files.GetUnpaidBags(c.Context(), address)
+	if err != nil {
+		return errorHandler(c, err)
+	}
+
+	return c.JSON(fiber.Map{
+		"bags": unpaidBags,
+	})
+}
+
+func (h *handler) markBagAsPaid(c *fiber.Ctx) error {
+	log := h.logger.With(
+		slog.String("method", c.Method()),
+		slog.String("url", c.OriginalURL()),
+	)
+
+	address, ok := c.Context().UserValue("address").(string)
+	if !ok || address == "" {
+		log.Error("no user address after successful auth")
+		return fiber.NewError(fiber.StatusInternalServerError, "")
+	}
+
+	var req v1.PaidBagRequest
+	if err := c.BodyParser(&req); err != nil {
+		log.Error("failed to parse request", slog.Any("error", err))
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
+	}
+
+	req.BagID = strings.ToLower(req.BagID)
+	err := h.files.MarkBagAsPaid(c.Context(), req.BagID, address, req.StorageContract)
+	if err != nil {
+		return errorHandler(c, err)
+	}
+
+	return okHandler(c)
+}
+
+>>>>>>> Stashed changes
 func (h *handler) fetchProvidersOffers(c *fiber.Ctx) error {
 	log := h.logger.With(
-		slog.String("method", "fetchProvidersOffers"),
 		slog.String("method", c.Method()),
 		slog.String("url", c.OriginalURL()),
 	)
@@ -141,8 +184,7 @@ func (h *handler) fetchProvidersOffers(c *fiber.Ctx) error {
 
 	resp, err := h.providers.FetchProvidersRates(c.Context(), req)
 	if err != nil {
-		log.Error("failed to fetch providers rates", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusInternalServerError, "failed to fetch providers rates")
+		return errorHandler(c, err)
 	}
 
 	return c.JSON(resp)
@@ -150,7 +192,6 @@ func (h *handler) fetchProvidersOffers(c *fiber.Ctx) error {
 
 func (h *handler) initStorageContract(c *fiber.Ctx) error {
 	log := h.logger.With(
-		slog.String("method", "initStorageContract"),
 		slog.String("method", c.Method()),
 		slog.String("url", c.OriginalURL()),
 	)
@@ -161,37 +202,32 @@ func (h *handler) initStorageContract(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
 	}
 
-	providersKeys := make([]string, 0, len(info.Providers))
-	for _, provider := range info.Providers {
-		providersKeys = append(providersKeys, provider.PublicKey)
-	}
-
 	rates, err := h.providers.FetchProvidersRates(c.Context(), v1.OffersRequest{
 		BagID:     info.BagID,
-		Providers: providersKeys,
+		Providers: info.ProvidersKeys,
 	})
 	if err != nil {
 		log.Error("failed to fetch providers rates", slog.Any("error", err))
 		return fiber.NewError(fiber.StatusInternalServerError, "failed to fetch providers rates")
 	}
-	if len(rates.Offers) != len(info.Providers) {
-		log.Error("not all providers returned offers", slog.Int("expected", len(info.Providers)), slog.Int("received", len(rates.Offers)))
+	if len(rates.Offers) != len(info.ProvidersKeys) {
+		log.Error("not all providers returned offers", slog.Int("expected", len(info.ProvidersKeys)), slog.Int("received", len(rates.Offers)))
 		return fiber.NewError(fiber.StatusBadRequest, "some providers unavailable")
 	}
 
 	providersOffers := make([]v1.ProviderShort, 0, len(rates.Offers))
 	for _, offer := range rates.Offers {
-		index := slices.IndexFunc(info.Providers, func(p v1.ProviderAddress) bool {
-			return strings.ToUpper(p.PublicKey) == offer.Provider.Key
+		index := slices.IndexFunc(info.ProvidersKeys, func(key string) bool {
+			return strings.EqualFold(key, offer.Provider.Key)
 		})
 
 		if index == -1 {
-			log.Error("provider not found in request", slog.String("provider_key", offer.Provider.Key))
-			return fiber.NewError(fiber.StatusBadRequest, "provider not found in request")
+			log.Error("some providers unavailable", slog.String("provider_key", offer.Provider.Key))
+			return fiber.NewError(fiber.StatusBadRequest, "some providers unavailable, please, try again")
 		}
 
 		providersOffers = append(providersOffers, v1.ProviderShort{
-			Address:       info.Providers[index].Address,
+			Pubkey:        offer.Provider.Key,
 			MaxSpan:       offer.OfferSpan,
 			PricePerMBDay: offer.PricePerMB,
 		})
@@ -199,8 +235,7 @@ func (h *handler) initStorageContract(c *fiber.Ctx) error {
 
 	resp, err := h.providers.InitStorageContract(c.Context(), info, providersOffers)
 	if err != nil {
-		log.Error("failed to init storage contract", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusInternalServerError, "failed to init storage contract")
+		return errorHandler(c, err)
 	}
 
 	return c.JSON(resp)

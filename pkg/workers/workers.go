@@ -22,6 +22,14 @@ type Workers interface {
 func (w *worker) Start(ctx context.Context) (err error) {
 	go w.run(ctx, "CleanupOldData", w.cleaner.CleanupOldData)
 
+<<<<<<< Updated upstream
+=======
+	go w.run(ctx, "RemoveUnusedFiles", w.files.RemoveUnusedFiles)
+	// go w.run(ctx, "CleanupRemovedFiles", w.files.RemoveOldUnpaidFiles)
+	go w.run(ctx, "TriggerProvidersDownload", w.files.TriggerProvidersDownload)
+	go w.run(ctx, "CollectContractProvidersToNotify", w.files.CollectContractProvidersToNotify)
+
+>>>>>>> Stashed changes
 	return nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"strings"
@@ -15,9 +16,9 @@ import (
 	"github.com/xssnick/tonutils-storage-provider/pkg/transport"
 	"github.com/xssnick/tonutils-storage/provider"
 
+	tonstorage "mytonstorage-backend/pkg/clients/ton-storage"
 	"mytonstorage-backend/pkg/models"
 	v1 "mytonstorage-backend/pkg/models/api/v1"
-	tonstorage "mytonstorage-backend/pkg/ton-storage"
 	"mytonstorage-backend/pkg/utils"
 )
 
@@ -135,11 +136,27 @@ func (s *service) InitStorageContract(ctx context.Context, info v1.InitStorageCo
 		return
 	}
 
+	addr, sx, _, err := contract.PrepareV1DeployData(torrentHash, merkle, details.BagSize, details.PieceSize, ownerAddr, nil)
+	if err != nil {
+		log.Error("failed to prepare contract deploy data", slog.String("error", err.Error()))
+		err = models.NewAppError(models.ServiceUnavailableCode, "failed to prepare contract deploy data")
+		return
+	}
+
+	fmt.Printf("code hash: %x\n", sx.Code.Hash())
+
 	var prs []contract.ProviderV1
 	for _, p := range providers {
-		pAddr, pErr := address.ParseAddr(p.Address)
-		if pErr != nil {
-			log.Error("failed to parse provider address", "error", pErr.Error(), "provider", p.Address)
+		d, dErr := hex.DecodeString(p.Pubkey)
+		if dErr != nil {
+			log.Error("failed to decode provider address", slog.String("error", dErr.Error()))
+			err = models.NewAppError(models.BadRequestErrorCode, "invalid provider address")
+			return
+		}
+
+		pAddr := address.NewAddress(0, 0, d)
+		if pAddr == nil {
+			log.Error("failed to parse provider address", "provider", p.Pubkey)
 			err = models.NewAppError(models.BadRequestErrorCode, "invalid provider address")
 			return
 		}
@@ -151,7 +168,7 @@ func (s *service) InitStorageContract(ctx context.Context, info v1.InitStorageCo
 		})
 	}
 
-	addr, stateInit, body, err := contract.PrepareV1DeployData(torrentHash, merkle, details.Size, details.PieceSize, ownerAddr, prs)
+	_, stateInit, body, err := contract.PrepareV1DeployData(torrentHash, merkle, details.BagSize, details.PieceSize, ownerAddr, prs)
 	if err != nil {
 		log.Error("failed to prepare contract deploy data", slog.String("error", err.Error()))
 		err = models.NewAppError(models.ServiceUnavailableCode, "failed to prepare contract deploy data")

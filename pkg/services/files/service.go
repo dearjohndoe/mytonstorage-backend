@@ -11,9 +11,17 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/xssnick/tonutils-go/address"
 
+<<<<<<< Updated upstream
 	v1 "mytonstorage-backend/pkg/models/api/v1"
 	tonstorage "mytonstorage-backend/pkg/ton-storage"
+=======
+	tonstorage "mytonstorage-backend/pkg/clients/ton-storage"
+	"mytonstorage-backend/pkg/models"
+	v1 "mytonstorage-backend/pkg/models/api/v1"
+	"mytonstorage-backend/pkg/models/db"
+>>>>>>> Stashed changes
 )
 
 type service struct {
@@ -33,14 +41,22 @@ type filesDb interface {
 }
 
 type Files interface {
+<<<<<<< Updated upstream
 	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader) (bagid string, err error)
 	BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error)
 	DeleteBag(ctx context.Context, bagID string) error
+=======
+	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader, userAddr string) (bagid string, err error)
+	BagInfo(ctx context.Context, bagID string, userAddr string) (info *v1.BagInfo, err error)
+	DeleteBag(ctx context.Context, bagID string, userAddr string) error
+	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (err error)
+	GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error)
+>>>>>>> Stashed changes
 }
 
 func (s *service) AddFiles(ctx context.Context, description string, files []*multipart.FileHeader) (bagid string, err error) {
 	log := s.logger.With(
-		slog.String("method", "AddFile"),
+		slog.String("method", "AddFiles"),
 		slog.String("description", description),
 		slog.Int("file_count", len(files)),
 	)
@@ -133,7 +149,26 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		return "", err
 	}
 
+<<<<<<< Updated upstream
 	// todo: save to db
+=======
+	bagInfo, err := s.tonstorage.GetBag(ctx, bagid)
+	if err != nil {
+		log.Error("Failed to get bag info", "error", err.Error())
+		return "", models.NewAppError(models.InternalServerErrorCode, "")
+	}
+
+	// Save bag info to database
+	err = s.files.AddBag(ctx, db.BagInfo{
+		BagID:       bagid,
+		Description: description,
+		Size:        bagInfo.Size,
+	}, userAddr)
+	if err != nil {
+		log.Error("Failed to save bag info to database", "error", err.Error())
+		return "", models.NewAppError(models.InternalServerErrorCode, "")
+	}
+>>>>>>> Stashed changes
 
 	log.Info("File added successfully", slog.String("bag_id", bagid))
 
@@ -184,10 +219,61 @@ func (s *service) DeleteBag(ctx context.Context, bagID string) error {
 		return fmt.Errorf("failed to delete bag %s: %w", bagID, err)
 	}
 
+<<<<<<< Updated upstream
 	// todo: remove in db
+=======
+	// NOTE: File will be removed automatically by RemoveUnusedFiles worker
+	log.Info("Bag marked to be deleted successfully")
+
+	return nil
+}
+
+func (s *service) MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (err error) {
+	log := s.logger.With(
+		slog.String("method", "MarkBagAsPaid"),
+		slog.String("bag_id", bagID),
+	)
+
+	addr, err := address.ParseAddr(storageContract)
+	if err != nil {
+		log.Error("Failed to parse storage contract address", "error", err)
+		return models.NewAppError(models.BadRequestErrorCode, "invalid contract address")
+	}
+
+	_, err = s.files.MarkBagAsPaid(ctx, bagID, userAddress, addr.String())
+	if err != nil {
+		log.Error("Failed to mark bag as paid", "error", err)
+		return models.NewAppError(models.InternalServerErrorCode, "")
+	}
+>>>>>>> Stashed changes
 
 	log.Info("Bag deleted by user successfully", slog.String("bag_id", bagID))
 	return nil
+}
+
+func (s *service) GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error) {
+	log := s.logger.With(
+		slog.String("method", "GetUnpaidBags"),
+		slog.String("user_address", userAddr),
+	)
+
+	unpaidBags, err := s.files.GetUnpaidBags(ctx, userAddr)
+	if err != nil {
+		log.Error("Failed to get unpaid bags", "error", err)
+		return nil, models.NewAppError(models.InternalServerErrorCode, "")
+	}
+
+	for _, bag := range unpaidBags {
+		info = append(info, v1.UserBagInfo{
+			BagID:           bag.BagID,
+			UserAddress:     bag.UserAddress,
+			StorageContract: bag.StorageContract,
+			CreatedAt:       bag.CreatedAt,
+			UpdatedAt:       bag.UpdatedAt,
+		})
+	}
+
+	return info, nil
 }
 
 func NewService(
