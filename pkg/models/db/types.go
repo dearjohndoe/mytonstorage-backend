@@ -1,12 +1,17 @@
 package db
-<<<<<<< Updated upstream
-=======
 
 type BagInfo struct {
 	BagID       string `json:"bagid"`
 	Description string `json:"description"`
 	Size        uint64 `json:"size"`
 	CreatedAt   int64  `json:"created_at"`
+}
+
+type BagDescription struct {
+	ContractAddress string `json:"contract_address"`
+	BagID           string `json:"bagid"`
+	Description     string `json:"description"`
+	Size            uint64 `json:"size"`
 }
 
 type UserBagInfo struct {
@@ -29,4 +34,3 @@ type ProviderNotification struct {
 	ProviderPubkey  string `json:"provider_pubkey"`
 	Size            uint64 `json:"size"`
 }
->>>>>>> Stashed changes

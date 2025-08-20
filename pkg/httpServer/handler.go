@@ -11,17 +11,12 @@ import (
 )
 
 type files interface {
-<<<<<<< Updated upstream
-	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader) (bagid string, err error)
-	BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error)
-	DeleteBag(ctx context.Context, bagID string) error
-=======
 	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader, userAddr string) (bagid string, err error)
-	BagInfo(ctx context.Context, bagID string, userAddr string) (info *v1.BagInfo, err error)
+	BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error)
 	DeleteBag(ctx context.Context, bagID string, userAddr string) error
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (err error)
 	GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error)
->>>>>>> Stashed changes
+	GetBagsInfoShort(ctx context.Context, bagIDs []string) (descriptions []v1.BagInfoShort, err error)
 }
 
 type providers interface {

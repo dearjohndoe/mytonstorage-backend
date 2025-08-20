@@ -28,6 +28,7 @@ import (
 	providersService "mytonstorage-backend/pkg/services/providers"
 	"mytonstorage-backend/pkg/workers"
 	"mytonstorage-backend/pkg/workers/cleaner"
+	filesworker "mytonstorage-backend/pkg/workers/files"
 )
 
 func main() {
@@ -129,14 +130,8 @@ func run() (err error) {
 	filesRepo := filesRepository.NewRepository(connPool)
 	filesRepo = filesRepository.NewMetrics(dbRequestsCount, dbRequestsDuration, filesRepo)
 
-<<<<<<< Updated upstream
-	// Workers
-	cleanerWorker := cleaner.NewWorker(filesRepo, config.System.StoreHistoryDays, logger)
-	cleanerWorker = cleaner.NewMetrics(workersRunCount, workersRunDuration, cleanerWorker)
-=======
 	providerRepo := providersRepository.NewRepository(connPool)
 	providerRepo = providersRepository.NewMetrics(dbRequestsCount, dbRequestsDuration, providerRepo)
->>>>>>> Stashed changes
 
 	// Clients
 	tonContractsClient, err := tonclient.NewClient(context.Background(), config.TON.ConfigURL, logger)
@@ -157,8 +152,6 @@ func run() (err error) {
 	}
 	storage := tonstorage.NewClient(config.TONStorage.BaseURL, config.TONStorage.BagsDirForStorage, &creds)
 
-<<<<<<< Updated upstream
-=======
 	// Workers
 	cleanerWorker := cleaner.NewWorker(filesRepo, config.System.StoreHistoryDays, logger)
 	cleanerWorker = cleaner.NewMetrics(workersRunCount, workersRunDuration, cleanerWorker)
@@ -166,7 +159,6 @@ func run() (err error) {
 	filesWorker := filesworker.NewWorker(filesRepo, providerRepo, storage, providerClient, tonContractsClient, config.System.StoreHistoryDays, logger)
 	filesWorker = filesworker.NewMetrics(workersRunCount, workersRunDuration, filesWorker)
 
->>>>>>> Stashed changes
 	// Services
 	providersSvc := providersService.NewService(providerClient, storage, config.System.MaxAllowedSpanDays, logger)
 
@@ -188,7 +180,7 @@ func run() (err error) {
 
 	// Start workers
 	cancelCtx, cancel := context.WithCancel(context.Background())
-	workers := workers.NewWorkers(cleanerWorker, logger)
+	workers := workers.NewWorkers(filesWorker, cleanerWorker, logger)
 	go func() {
 		if wErr := workers.Start(cancelCtx); wErr != nil {
 			logger.Error("failed to start workers", slog.String("error", wErr.Error()))

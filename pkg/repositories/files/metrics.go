@@ -1,7 +1,13 @@
 package files
 
 import (
+	"context"
+	"strconv"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
+
+	"mytonstorage-backend/pkg/models/db"
 )
 
 type metricsMiddleware struct {
@@ -10,8 +16,6 @@ type metricsMiddleware struct {
 	repo        Repository
 }
 
-<<<<<<< Updated upstream
-=======
 func (m *metricsMiddleware) AddBag(ctx context.Context, bag db.BagInfo, userAddr string) (err error) {
 	defer func(s time.Time) {
 		labels := []string{
@@ -67,6 +71,17 @@ func (m *metricsMiddleware) MarkBagAsPaid(ctx context.Context, bagID, userAddres
 	return m.repo.MarkBagAsPaid(ctx, bagID, userAddress, storageContract)
 }
 
+func (m *metricsMiddleware) GetBagsInfoShort(ctx context.Context, contracts []string) (info []db.BagDescription, err error) {
+	defer func(s time.Time) {
+		labels := []string{
+			"GetBagsInfoShort", strconv.FormatBool(err != nil),
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.repo.GetBagsInfoShort(ctx, contracts)
+}
+
 func (m *metricsMiddleware) GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) (resp []db.BagStorageContract, err error) {
 	defer func(s time.Time) {
 		labels := []string{
@@ -89,7 +104,6 @@ func (m *metricsMiddleware) IncreaseAttempts(ctx context.Context, bags []db.BagS
 	return m.repo.IncreaseAttempts(ctx, bags)
 }
 
->>>>>>> Stashed changes
 func NewMetrics(reqCount *prometheus.CounterVec, reqDuration *prometheus.HistogramVec, repo Repository) Repository {
 	return &metricsMiddleware{
 		reqCount:    reqCount,

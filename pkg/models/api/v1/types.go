@@ -4,14 +4,11 @@ import (
 	"github.com/xssnick/tonutils-go/ton/wallet"
 )
 
-<<<<<<< Updated upstream
-=======
 type PaidBagRequest struct {
 	BagID           string `json:"bag_id"`
 	StorageContract string `json:"storage_contract"`
 }
 
->>>>>>> Stashed changes
 type BagInfo struct {
 	BagID       string `json:"bag_id"`
 	Description string `json:"description"`
@@ -19,6 +16,17 @@ type BagInfo struct {
 	FilesCount  uint64 `json:"files_count"`
 	BagSize     uint64 `json:"bag_size"`
 	Peers       int    `json:"peers"`
+}
+
+type DescriptionsRequest struct {
+	ContractsAddresses []string `json:"contracts"`
+}
+
+type BagInfoShort struct {
+	ContractAddress string `json:"contract_address"`
+	BagID           string `json:"bag_id"`
+	Description     string `json:"description"`
+	Size            uint64 `json:"size"`
 }
 
 type UserBagInfo struct {
