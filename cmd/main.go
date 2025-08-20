@@ -180,7 +180,7 @@ func run() (err error) {
 
 	// Start workers
 	cancelCtx, cancel := context.WithCancel(context.Background())
-	workers := workers.NewWorkers(cleanerWorker, logger)
+	workers := workers.NewWorkers(filesWorker, cleanerWorker, logger)
 	go func() {
 		if wErr := workers.Start(cancelCtx); wErr != nil {
 			logger.Error("failed to start workers", slog.String("error", wErr.Error()))

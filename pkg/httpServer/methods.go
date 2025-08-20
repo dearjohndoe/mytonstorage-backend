@@ -90,19 +90,13 @@ func (h *handler) bagInfo(c *fiber.Ctx) error {
 		slog.String("url", c.OriginalURL()),
 	)
 
-	address, ok := c.Context().UserValue("address").(string)
-	if !ok || address == "" {
-		log.Error("no user address after successful auth")
-		return fiber.NewError(fiber.StatusInternalServerError, "")
-	}
-
 	bagID := strings.ToLower(c.Params("bag_id"))
 	if !validateBagID(bagID) {
 		log.Error("bag_id is required")
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
 	}
 
-	info, err := h.files.BagInfo(c.Context(), bagID, address)
+	info, err := h.files.BagInfo(c.Context(), bagID)
 	if err != nil {
 		return errorHandler(c, err)
 	}
@@ -183,6 +177,26 @@ func (h *handler) markBagAsPaid(c *fiber.Ctx) error {
 	}
 
 	return okHandler(c)
+}
+
+func (h *handler) GetBagsInfoShort(c *fiber.Ctx) error {
+	log := h.logger.With(
+		slog.String("method", c.Method()),
+		slog.String("url", c.OriginalURL()),
+	)
+
+	var req v1.DescriptionsRequest
+	if err := c.BodyParser(&req); err != nil {
+		log.Error("failed to parse request", slog.Any("error", err))
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
+	}
+
+	bagsInfo, err := h.files.GetBagsInfoShort(c.Context(), req.ContractsAddresses)
+	if err != nil {
+		return errorHandler(c, err)
+	}
+
+	return c.JSON(bagsInfo)
 }
 
 func (h *handler) fetchProvidersOffers(c *fiber.Ctx) error {

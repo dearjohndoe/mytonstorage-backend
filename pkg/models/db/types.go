@@ -7,6 +7,13 @@ type BagInfo struct {
 	CreatedAt   int64  `json:"created_at"`
 }
 
+type BagDescription struct {
+	ContractAddress string `json:"contract_address"`
+	BagID           string `json:"bagid"`
+	Description     string `json:"description"`
+	Size            uint64 `json:"size"`
+}
+
 type UserBagInfo struct {
 	BagID           string `json:"bagid"`
 	UserAddress     string `json:"user_address"`

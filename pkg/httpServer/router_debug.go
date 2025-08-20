@@ -66,6 +66,7 @@ func (h *handler) RegisterRoutes() {
 			files := apiv1.Group("/files", h.userAuthMiddleware)
 			files.Post("/", h.uploadFiles)
 			files.Post("/paid", h.markBagAsPaid)
+			files.Post("/details", h.GetBagsInfoShort)
 			files.Post("/unpaid", h.getUnpaid)
 			files.Delete("/:bag_id", h.deleteBag)
 			files.Get("/:bag_id", h.bagInfo)

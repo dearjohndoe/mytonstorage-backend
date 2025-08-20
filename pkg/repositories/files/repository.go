@@ -20,6 +20,8 @@ type Repository interface {
 	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (int64, error)
 
+	GetBagsInfoShort(ctx context.Context, bagIDs []string) ([]db.BagDescription, error)
+
 	GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) ([]db.BagStorageContract, error)
 	IncreaseAttempts(ctx context.Context, bags []db.BagStorageContract) error
 }
@@ -132,6 +134,31 @@ func (r *repository) MarkBagAsPaid(ctx context.Context, bagID, userAddress, stor
 	cnt = row.RowsAffected()
 
 	return
+}
+
+func (r *repository) GetBagsInfoShort(ctx context.Context, contracts []string) (descriptions []db.BagDescription, err error) {
+	query := `
+		SELECT bu.storage_contract, b.bagid, b.description, b.size
+		FROM files.bag_users bu 
+			JOIN files.bags b ON b.bagid = bu.bagid
+		WHERE bu.storage_contract = ANY($1::text[])
+	`
+
+	rows, err := r.db.Query(ctx, query, contracts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var desc db.BagDescription
+		if err := rows.Scan(&desc.ContractAddress, &desc.BagID, &desc.Description, &desc.Size); err != nil {
+			return nil, err
+		}
+		descriptions = append(descriptions, desc)
+	}
+
+	return descriptions, nil
 }
 
 func (r *repository) GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) (resp []db.BagStorageContract, err error) {

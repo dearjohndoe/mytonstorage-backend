@@ -19,6 +19,10 @@ import (
 	"mytonstorage-backend/pkg/models/db"
 )
 
+const (
+	descriptionsStoreLimit = 1000
+)
+
 type service struct {
 	files      filesDb
 	tonstorage storage
@@ -37,10 +41,10 @@ type filesDb interface {
 	RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (int64, error)
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
 	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
-	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (int64, error)
-
 	GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) ([]db.BagStorageContract, error)
 	IncreaseAttempts(ctx context.Context, bags []db.BagStorageContract) error
+	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (cnt int64, err error)
+	GetBagsInfoShort(ctx context.Context, contracts []string) (info []db.BagDescription, err error)
 }
 
 type Files interface {
@@ -49,6 +53,7 @@ type Files interface {
 	DeleteBag(ctx context.Context, bagID string, userAddr string) error
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (err error)
 	GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error)
+	GetBagsInfoShort(ctx context.Context, contracts []string) (info []v1.BagInfoShort, err error)
 }
 
 func (s *service) AddFiles(ctx context.Context, description string, files []*multipart.FileHeader, userAddr string) (bagid string, err error) {
@@ -252,6 +257,35 @@ func (s *service) GetUnpaidBags(ctx context.Context, userAddr string) (info []v1
 			StorageContract: bag.StorageContract,
 			CreatedAt:       bag.CreatedAt,
 			UpdatedAt:       bag.UpdatedAt,
+		})
+	}
+
+	return info, nil
+}
+
+func (s *service) GetBagsInfoShort(ctx context.Context, contracts []string) (info []v1.BagInfoShort, err error) {
+	log := s.logger.With(
+		slog.String("method", "GetBagsInfoShort"),
+		slog.Int("bag_ids_count", len(contracts)),
+	)
+
+	if len(contracts) > descriptionsStoreLimit {
+		contracts = contracts[:descriptionsStoreLimit]
+	}
+
+	desc, err := s.files.GetBagsInfoShort(ctx, contracts)
+	if err != nil {
+		log.Error("Failed to get bag descriptions", "error", err)
+		return nil, models.NewAppError(models.InternalServerErrorCode, "")
+	}
+
+	info = make([]v1.BagInfoShort, 0, len(desc))
+	for _, d := range desc {
+		info = append(info, v1.BagInfoShort{
+			ContractAddress: d.ContractAddress,
+			BagID:           d.BagID,
+			Description:     d.Description,
+			Size:            d.Size,
 		})
 	}
 

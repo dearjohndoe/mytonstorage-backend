@@ -55,6 +55,10 @@ func (c *cacheMiddleware) GetUnpaidBags(ctx context.Context, userAddr string) (i
 	return c.svc.GetUnpaidBags(ctx, userAddr)
 }
 
+func (c *cacheMiddleware) GetBagsInfoShort(ctx context.Context, contracts []string) (info []v1.BagInfoShort, err error) {
+	return c.svc.GetBagsInfoShort(ctx, contracts)
+}
+
 func NewCacheMiddleware(
 	svc Files,
 ) Files {
