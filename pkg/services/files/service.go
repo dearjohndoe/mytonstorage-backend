@@ -13,15 +13,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/xssnick/tonutils-go/address"
 
-<<<<<<< Updated upstream
-	v1 "mytonstorage-backend/pkg/models/api/v1"
-	tonstorage "mytonstorage-backend/pkg/ton-storage"
-=======
 	tonstorage "mytonstorage-backend/pkg/clients/ton-storage"
 	"mytonstorage-backend/pkg/models"
 	v1 "mytonstorage-backend/pkg/models/api/v1"
 	"mytonstorage-backend/pkg/models/db"
->>>>>>> Stashed changes
 )
 
 type service struct {
@@ -38,23 +33,25 @@ type storage interface {
 }
 
 type filesDb interface {
+	AddBag(ctx context.Context, bag db.BagInfo, userAddr string) error
+	RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (int64, error)
+	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
+	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
+	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (int64, error)
+
+	GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) ([]db.BagStorageContract, error)
+	IncreaseAttempts(ctx context.Context, bags []db.BagStorageContract) error
 }
 
 type Files interface {
-<<<<<<< Updated upstream
-	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader) (bagid string, err error)
-	BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error)
-	DeleteBag(ctx context.Context, bagID string) error
-=======
 	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader, userAddr string) (bagid string, err error)
-	BagInfo(ctx context.Context, bagID string, userAddr string) (info *v1.BagInfo, err error)
+	BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error)
 	DeleteBag(ctx context.Context, bagID string, userAddr string) error
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (err error)
 	GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error)
->>>>>>> Stashed changes
 }
 
-func (s *service) AddFiles(ctx context.Context, description string, files []*multipart.FileHeader) (bagid string, err error) {
+func (s *service) AddFiles(ctx context.Context, description string, files []*multipart.FileHeader, userAddr string) (bagid string, err error) {
 	log := s.logger.With(
 		slog.String("method", "AddFiles"),
 		slog.String("description", description),
@@ -149,9 +146,6 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		return "", err
 	}
 
-<<<<<<< Updated upstream
-	// todo: save to db
-=======
 	bagInfo, err := s.tonstorage.GetBag(ctx, bagid)
 	if err != nil {
 		log.Error("Failed to get bag info", "error", err.Error())
@@ -168,7 +162,6 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		log.Error("Failed to save bag info to database", "error", err.Error())
 		return "", models.NewAppError(models.InternalServerErrorCode, "")
 	}
->>>>>>> Stashed changes
 
 	log.Info("File added successfully", slog.String("bag_id", bagid))
 
@@ -200,28 +193,18 @@ func (s *service) BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, 
 	return
 }
 
-func (s *service) DeleteBag(ctx context.Context, bagID string) error {
+func (s *service) DeleteBag(ctx context.Context, bagID string, userAddr string) error {
 	log := s.logger.With(
 		slog.String("method", "DeleteBag"),
 		slog.String("bag_id", bagID),
 	)
 
-	// todo: check if no one is storing same bag
-
-	err := s.tonstorage.RemoveBag(ctx, bagID, true)
+	_, err := s.files.RemoveUserBagRelation(ctx, bagID, userAddr)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			log.Info("Bag already deleted", slog.String("bag_id", bagID))
-			return nil
-		}
-
-		log.Error("Failed to delete bag", slog.Any("error", err))
-		return fmt.Errorf("failed to delete bag %s: %w", bagID, err)
+		log.Error("Failed to remove bag relation", "error", err)
+		return models.NewAppError(models.InternalServerErrorCode, "")
 	}
 
-<<<<<<< Updated upstream
-	// todo: remove in db
-=======
 	// NOTE: File will be removed automatically by RemoveUnusedFiles worker
 	log.Info("Bag marked to be deleted successfully")
 
@@ -245,7 +228,6 @@ func (s *service) MarkBagAsPaid(ctx context.Context, bagID, userAddress, storage
 		log.Error("Failed to mark bag as paid", "error", err)
 		return models.NewAppError(models.InternalServerErrorCode, "")
 	}
->>>>>>> Stashed changes
 
 	log.Info("Bag deleted by user successfully", slog.String("bag_id", bagID))
 	return nil

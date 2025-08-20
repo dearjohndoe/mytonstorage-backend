@@ -1,7 +1,13 @@
 package files
 
 import (
+	"context"
+	"strconv"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
+
+	"mytonstorage-backend/pkg/models/db"
 )
 
 type metricsMiddleware struct {
@@ -10,8 +16,6 @@ type metricsMiddleware struct {
 	repo        Repository
 }
 
-<<<<<<< Updated upstream
-=======
 func (m *metricsMiddleware) AddBag(ctx context.Context, bag db.BagInfo, userAddr string) (err error) {
 	defer func(s time.Time) {
 		labels := []string{
@@ -89,7 +93,6 @@ func (m *metricsMiddleware) IncreaseAttempts(ctx context.Context, bags []db.BagS
 	return m.repo.IncreaseAttempts(ctx, bags)
 }
 
->>>>>>> Stashed changes
 func NewMetrics(reqCount *prometheus.CounterVec, reqDuration *prometheus.HistogramVec, repo Repository) Repository {
 	return &metricsMiddleware{
 		reqCount:    reqCount,

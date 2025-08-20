@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"mytonstorage-backend/pkg/workers/cleaner"
+	filesworker "mytonstorage-backend/pkg/workers/files"
 )
 
 type workerFunc = func(ctx context.Context) (interval time.Duration, err error)
 
 type worker struct {
+	files   filesworker.Worker
 	cleaner cleaner.Worker
 	logger  *slog.Logger
 }
@@ -22,14 +24,11 @@ type Workers interface {
 func (w *worker) Start(ctx context.Context) (err error) {
 	go w.run(ctx, "CleanupOldData", w.cleaner.CleanupOldData)
 
-<<<<<<< Updated upstream
-=======
 	go w.run(ctx, "RemoveUnusedFiles", w.files.RemoveUnusedFiles)
 	// go w.run(ctx, "CleanupRemovedFiles", w.files.RemoveOldUnpaidFiles)
 	go w.run(ctx, "TriggerProvidersDownload", w.files.TriggerProvidersDownload)
 	go w.run(ctx, "CollectContractProvidersToNotify", w.files.CollectContractProvidersToNotify)
 
->>>>>>> Stashed changes
 	return nil
 }
 
@@ -60,10 +59,12 @@ func (w *worker) run(ctx context.Context, name string, f workerFunc) {
 }
 
 func NewWorkers(
+	files filesworker.Worker,
 	cleaner cleaner.Worker,
 	logger *slog.Logger,
 ) Workers {
 	return &worker{
+		files:   files,
 		cleaner: cleaner,
 		logger:  logger,
 	}

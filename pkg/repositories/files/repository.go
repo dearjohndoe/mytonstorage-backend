@@ -1,13 +1,12 @@
 package files
 
 import (
-<<<<<<< Updated upstream
-=======
 	"context"
 	"time"
 
->>>>>>> Stashed changes
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"mytonstorage-backend/pkg/models/db"
 )
 
 type repository struct {
@@ -15,8 +14,6 @@ type repository struct {
 }
 
 type Repository interface {
-<<<<<<< Updated upstream
-=======
 	AddBag(ctx context.Context, bag db.BagInfo, userAddr string) error
 	RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (int64, error)
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
@@ -135,7 +132,6 @@ func (r *repository) MarkBagAsPaid(ctx context.Context, bagID, userAddress, stor
 	cnt = row.RowsAffected()
 
 	return
->>>>>>> Stashed changes
 }
 
 func (r *repository) GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) (resp []db.BagStorageContract, err error) {

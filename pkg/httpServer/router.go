@@ -41,12 +41,8 @@ func (h *handler) RegisterRoutes() {
 		{
 			files := apiv1.Group("/files", h.userAuthMiddleware)
 			files.Post("/", h.uploadFiles)
-<<<<<<< Updated upstream
-			files.Get("/:bag_id", h.bagInfo)
-=======
 			files.Post("/paid", h.markBagAsPaid)
 			files.Post("/unpaid", h.getUnpaid)
->>>>>>> Stashed changes
 			files.Delete("/:bag_id", h.deleteBag)
 			files.Get("/:bag_id", h.bagInfo)
 		}
