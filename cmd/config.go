@@ -26,6 +26,7 @@ type System struct {
 	AdminAuthTokens     string             `env:"SYSTEM_ADMIN_AUTH_TOKENS" envDefault:""`
 	LogLevel            uint8              `env:"SYSTEM_LOG_LEVEL" envDefault:"1"` // 0 - debug, 1 - info, 2 - warn, 3 - error
 	StoreHistoryDays    int                `env:"SYSTEM_STORE_HISTORY_DAYS" envDefault:"90"`
+	UnpaidFilesLifetime time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME" envDefault:"15m"`
 	MaxAllowedSpanDays  uint32             `env:"SYSTEM_MAX_ALLOWED_SPAN_DAYS" envDefault:"7"`
 }
 

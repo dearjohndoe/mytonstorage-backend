@@ -20,6 +20,7 @@ import (
 
 type filesDb interface {
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
+	RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error)
 	GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) (resp []db.BagStorageContract, err error)
 	IncreaseAttempts(ctx context.Context, bags []db.BagStorageContract) error
 }
@@ -40,13 +41,13 @@ type contractsClient interface {
 }
 
 type filesWorker struct {
-	filesDb         filesDb
-	providersDb     providersDb
-	tonstorage      storage
-	provider        *transport.Client
-	contractsClient contractsClient
-	days            int
-	logger          *slog.Logger
+	filesDb             filesDb
+	providersDb         providersDb
+	tonstorage          storage
+	provider            *transport.Client
+	contractsClient     contractsClient
+	unpaidFilesLifetime time.Duration
+	logger              *slog.Logger
 }
 
 type Worker interface {
@@ -56,11 +57,11 @@ type Worker interface {
 	CollectContractProvidersToNotify(ctx context.Context) (interval time.Duration, err error)
 }
 
-// This worker check table bags_users and if some bag have no users it will be removed from db and from disk.
+// This worker check table bags and if some bag have no users(in bag_users) it will be removed from db and from disk.
 func (w *filesWorker) RemoveUnusedFiles(ctx context.Context) (interval time.Duration, err error) {
 	const (
 		failureInterval = 5 * time.Second
-		successInterval = 10 * time.Minute
+		successInterval = 1 * time.Minute
 	)
 
 	log := w.logger.With("worker", "RemoveUnusedFiles")
@@ -97,13 +98,23 @@ func (w *filesWorker) RemoveUnusedFiles(ctx context.Context) (interval time.Dura
 func (w *filesWorker) RemoveOldUnpaidFiles(ctx context.Context) (interval time.Duration, err error) {
 	const (
 		failureInterval = 5 * time.Second
-		successInterval = 10 * time.Minute
+		successInterval = 1 * time.Minute
 	)
 
 	log := w.logger.With("worker", "RemoveOldUnpaidFiles")
 	log.Debug("removing unpaid files")
 
 	interval = successInterval
+
+	removed, err := w.filesDb.RemoveUnpaidBags(ctx, uint64(w.unpaidFilesLifetime.Seconds()))
+	if err != nil {
+		interval = failureInterval
+		return
+	}
+
+	if len(removed) == 0 {
+		log.Info("removed old unpaid files", "count", len(removed))
+	}
 
 	return
 }
@@ -287,14 +298,22 @@ func (w *filesWorker) CollectContractProvidersToNotify(ctx context.Context) (int
 	return
 }
 
-func NewWorker(filesDb filesDb, providersDb providersDb, tonstorage storage, provider *transport.Client, contractsClient contractsClient, days int, logger *slog.Logger) Worker {
+func NewWorker(
+	filesDb filesDb,
+	providersDb providersDb,
+	tonstorage storage,
+	provider *transport.Client,
+	contractsClient contractsClient,
+	unpaidFilesLifetime time.Duration,
+	logger *slog.Logger,
+) Worker {
 	return &filesWorker{
-		filesDb:         filesDb,
-		providersDb:     providersDb,
-		tonstorage:      tonstorage,
-		provider:        provider,
-		contractsClient: contractsClient,
-		days:            days,
-		logger:          logger,
+		filesDb:             filesDb,
+		providersDb:         providersDb,
+		tonstorage:          tonstorage,
+		provider:            provider,
+		contractsClient:     contractsClient,
+		unpaidFilesLifetime: unpaidFilesLifetime,
+		logger:              logger,
 	}
 }

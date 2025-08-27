@@ -38,6 +38,17 @@ func (m *metricsMiddleware) RemoveUserBagRelation(ctx context.Context, bagID, us
 	return m.repo.RemoveUserBagRelation(ctx, bagID, userAddress)
 }
 
+func (m *metricsMiddleware) RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error) {
+	defer func(s time.Time) {
+		labels := []string{
+			"RemoveUnpaidBags", strconv.FormatBool(err != nil),
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.repo.RemoveUnpaidBags(ctx, sec)
+}
+
 func (m *metricsMiddleware) RemoveUnusedBags(ctx context.Context) (removed []string, err error) {
 	defer func(s time.Time) {
 		labels := []string{

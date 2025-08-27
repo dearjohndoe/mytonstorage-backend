@@ -16,6 +16,7 @@ type repository struct {
 type Repository interface {
 	AddBag(ctx context.Context, bag db.BagInfo, userAddr string) error
 	RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (int64, error)
+	RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error)
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
 	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (int64, error)
@@ -88,6 +89,38 @@ func (r *repository) RemoveUserBagRelation(ctx context.Context, bagID, userAddre
 	cnt = row.RowsAffected()
 
 	return
+}
+
+func (r *repository) RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error) {
+	query := `
+		WITH to_remove AS (
+			SELECT bu.bagid, bu.user_address
+			FROM files.bag_users bu
+			WHERE bu.storage_contract IS NULL 
+				AND EXTRACT(EPOCH FROM (NOW() - bu.created_at)) > $1
+		),
+		remove AS (
+			DELETE FROM files.bag_users
+			WHERE (bagid, user_address) IN (SELECT bagid, user_address FROM to_remove)
+			RETURNING bagid
+		)
+		SELECT DISTINCT bagid FROM remove
+	`
+	rows, err := r.db.Query(ctx, query, sec)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var bagID string
+		if err := rows.Scan(&bagID); err != nil {
+			return nil, err
+		}
+		bagids = append(bagids, bagID)
+	}
+
+	return bagids, nil
 }
 
 func (r *repository) GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error) {

@@ -25,6 +25,7 @@ func (w *worker) Start(ctx context.Context) (err error) {
 	go w.run(ctx, "CleanupOldData", w.cleaner.CleanupOldData)
 
 	go w.run(ctx, "RemoveUnusedFiles", w.files.RemoveUnusedFiles)
+	go w.run(ctx, "RemoveOldUnpaidFiles", w.files.RemoveOldUnpaidFiles)
 	// go w.run(ctx, "CleanupRemovedFiles", w.files.RemoveOldUnpaidFiles)
 	go w.run(ctx, "TriggerProvidersDownload", w.files.TriggerProvidersDownload)
 	go w.run(ctx, "CollectContractProvidersToNotify", w.files.CollectContractProvidersToNotify)

@@ -157,7 +157,15 @@ func run() (err error) {
 	cleanerWorker := cleaner.NewWorker(filesRepo, config.System.StoreHistoryDays, logger)
 	cleanerWorker = cleaner.NewMetrics(workersRunCount, workersRunDuration, cleanerWorker)
 
-	filesWorker := filesworker.NewWorker(filesRepo, providerRepo, storage, providerClient, tonContractsClient, config.System.StoreHistoryDays, logger)
+	filesWorker := filesworker.NewWorker(
+		filesRepo,
+		providerRepo,
+		storage,
+		providerClient,
+		tonContractsClient,
+		config.System.UnpaidFilesLifetime,
+		logger,
+	)
 	filesWorker = filesworker.NewMetrics(workersRunCount, workersRunDuration, filesWorker)
 
 	// Services
