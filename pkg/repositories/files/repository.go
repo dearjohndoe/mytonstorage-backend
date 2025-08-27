@@ -75,7 +75,6 @@ func (r *repository) RemoveUnusedBags(ctx context.Context) (removed []string, er
 	return removed, nil
 }
 
-// todo: remove from files.bags by worker
 func (r *repository) RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (cnt int64, err error) {
 	query := `
 		DELETE FROM files.bag_users

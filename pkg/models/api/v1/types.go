@@ -51,6 +51,7 @@ type ProviderShort struct {
 
 type OffersRequest struct {
 	BagID     string   `json:"bag_id"`
+	BagSize   uint64   `json:"bag_size"`
 	Providers []string `json:"providers"`
 }
 
@@ -62,11 +63,27 @@ type ProviderContractData struct {
 	RatePerMBDay uint64 `json:"price_per_mb_day"`
 }
 
+type TopupRequest struct {
+	ContractAddress string `json:"address"`
+	Amount          uint64 `json:"amount"`
+}
+
+type WithdrawRequest struct {
+	ContractAddress string `json:"address"`
+}
+
 type InitStorageContractRequest struct {
 	BagID         string   `json:"bag_id"`
 	OwnerAddress  string   `json:"owner_address"`
 	Amount        uint64   `json:"amount"`
 	ProvidersKeys []string `json:"providers"`
+}
+
+type UpdateProvidersRequest struct {
+	ContractAddress string   `json:"address"`
+	BagSize         uint64   `json:"bag_size"`
+	Amount          uint64   `json:"amount"`
+	Providers       []string `json:"providers"`
 }
 
 type ProviderOffer struct {

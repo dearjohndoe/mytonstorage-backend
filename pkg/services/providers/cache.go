@@ -15,12 +15,19 @@ type providersCache struct {
 }
 
 func (c *providersCache) FetchProvidersRates(ctx context.Context, req v1.OffersRequest) (resp v1.ProviderRatesResponse, err error) {
-	// cached inner method fetchProviderRates below, so we good here
 	return c.svc.FetchProvidersRates(ctx, req)
+}
+
+func (c *providersCache) FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse) {
+	return c.svc.FetchProvidersRatesBySize(ctx, bagSize, providers)
 }
 
 func (c *providersCache) InitStorageContract(ctx context.Context, info v1.InitStorageContractRequest, providers []v1.ProviderShort) (resp v1.Transaction, err error) {
 	return c.svc.InitStorageContract(ctx, info, providers)
+}
+
+func (c *providersCache) EditStorageContract(ctx context.Context, address string, amount uint64, providers []v1.ProviderShort) (resp v1.Transaction, err error) {
+	return c.svc.EditStorageContract(ctx, address, amount, providers)
 }
 
 func (c *providersCache) fetchProviderRates(ctx context.Context, bagSize uint64, providerKey string) (offer *v1.ProviderOffer, reason string) {

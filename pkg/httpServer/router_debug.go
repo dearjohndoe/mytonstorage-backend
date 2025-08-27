@@ -73,9 +73,16 @@ func (h *handler) RegisterRoutes() {
 		}
 
 		{
+			contracts := apiv1.Group("/contracts", h.userAuthMiddleware)
+			contracts.Post("/init-contract", h.initStorageContract)
+			contracts.Post("/topup", h.topupBalance)
+			contracts.Post("/withdraw", h.withdrawBalance)
+			contracts.Post("/update", h.updateProviders)
+		}
+
+		{
 			providers := apiv1.Group("/providers", h.userAuthMiddleware)
 			providers.Post("/offers", h.fetchProvidersOffers)
-			providers.Post("/init-contract", h.initStorageContract)
 		}
 	}
 }

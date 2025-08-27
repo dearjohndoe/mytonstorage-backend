@@ -24,6 +24,7 @@ import (
 	filesRepository "mytonstorage-backend/pkg/repositories/files"
 	providersRepository "mytonstorage-backend/pkg/repositories/providers"
 	"mytonstorage-backend/pkg/services/auth"
+	contractsService "mytonstorage-backend/pkg/services/contracts"
 	filesService "mytonstorage-backend/pkg/services/files"
 	providersService "mytonstorage-backend/pkg/services/providers"
 	"mytonstorage-backend/pkg/workers"
@@ -162,6 +163,8 @@ func run() (err error) {
 	// Services
 	providersSvc := providersService.NewService(providerClient, storage, config.System.MaxAllowedSpanDays, logger)
 
+	contractsSvc := contractsService.NewService(logger)
+
 	filesSvc := filesService.NewService(filesRepo, storage, config.TONStorage.BagsDirForStorage, logger)
 	filesSvc = filesService.NewCacheMiddleware(filesSvc)
 
@@ -191,11 +194,12 @@ func run() (err error) {
 
 	// HTTP Server
 	adminAuthTokens := strings.Split(config.System.AdminAuthTokens, ",")
-	app := fiber.New()
+	app := fiber.New(fiber.Config{BodyLimit: 4 * 1024 * 1024 * 1024})
 	server := httpServer.New(
 		app,
 		filesSvc,
 		providersSvc,
+		contractsSvc,
 		authSvc,
 		adminAuthTokens,
 		config.Metrics.Namespace,
