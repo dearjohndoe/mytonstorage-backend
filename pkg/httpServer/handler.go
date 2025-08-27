@@ -19,9 +19,16 @@ type files interface {
 	GetBagsInfoShort(ctx context.Context, bagIDs []string) (descriptions []v1.BagInfoShort, err error)
 }
 
+type contracts interface {
+	TopupBalance(ctx context.Context, userAddress string, req v1.TopupRequest) (resp v1.Transaction, err error)
+	WithdrawBalance(ctx context.Context, userAddress string, req v1.WithdrawRequest) (resp v1.Transaction, err error)
+}
+
 type providers interface {
 	FetchProvidersRates(ctx context.Context, req v1.OffersRequest) (resp v1.ProviderRatesResponse, err error)
+	FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse)
 	InitStorageContract(ctx context.Context, info v1.InitStorageContractRequest, providers []v1.ProviderShort) (resp v1.Transaction, err error)
+	EditStorageContract(ctx context.Context, address string, amount uint64, providers []v1.ProviderShort) (resp v1.Transaction, err error)
 }
 
 type auth interface {
@@ -39,6 +46,7 @@ type handler struct {
 	logger          *slog.Logger
 	files           files
 	providers       providers
+	contracts       contracts
 	auth            auth
 	namespace       string
 	subsystem       string
@@ -49,6 +57,7 @@ func New(
 	server *fiber.App,
 	files files,
 	providers providers,
+	contracts contracts,
 	auth auth,
 	adminAuthTokens []string,
 	namespace string,
@@ -64,6 +73,7 @@ func New(
 		server:          server,
 		files:           files,
 		providers:       providers,
+		contracts:       contracts,
 		auth:            auth,
 		namespace:       namespace,
 		subsystem:       subsystem,

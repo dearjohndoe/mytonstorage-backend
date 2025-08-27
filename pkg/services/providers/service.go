@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"math/rand"
 	"strings"
 	"time"
 
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
+	"github.com/xssnick/tonutils-go/tvm/cell"
 	"github.com/xssnick/tonutils-storage-provider/pkg/contract"
 	"github.com/xssnick/tonutils-storage-provider/pkg/transport"
 	"github.com/xssnick/tonutils-storage/provider"
@@ -40,7 +42,9 @@ type service struct {
 
 type Providers interface {
 	FetchProvidersRates(ctx context.Context, req v1.OffersRequest) (resp v1.ProviderRatesResponse, err error)
+	FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse)
 	InitStorageContract(ctx context.Context, info v1.InitStorageContractRequest, providers []v1.ProviderShort) (resp v1.Transaction, err error)
+	EditStorageContract(ctx context.Context, address string, amount uint64, providers []v1.ProviderShort) (resp v1.Transaction, err error)
 
 	fetchProviderRates(ctx context.Context, bagSize uint64, providerKey string) (offer *v1.ProviderOffer, reason string)
 }
@@ -61,20 +65,31 @@ func (s *service) FetchProvidersRates(ctx context.Context, req v1.OffersRequest)
 		return
 	}
 
-	details, err := s.storage.GetBag(ctx, req.BagID)
-	if err != nil {
-		log.Error("failed to get bag details", slog.String("error", err.Error()))
-		err = models.NewAppError(models.ServiceUnavailableCode, "failed to get bag details")
-		return
+	bagSize := req.BagSize
+	if bagSize == 0 {
+		details, bErr := s.storage.GetBag(ctx, req.BagID)
+		if bErr != nil {
+			log.Error("failed to get bag details", slog.String("error", bErr.Error()))
+			err = models.NewAppError(models.ServiceUnavailableCode, "failed to get bag details")
+			return
+		}
+
+		bagSize = details.BagSize
 	}
 
-	for _, provider := range req.Providers {
+	resp = s.FetchProvidersRatesBySize(ctx, bagSize, req.Providers)
+
+	return resp, nil
+}
+
+func (s *service) FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse) {
+	for _, provider := range providers {
 		func() {
 			timeoutCtx, cancel := context.WithTimeout(ctx, providerRequestTimeout)
 			defer cancel()
 
 			// todo: add retries
-			rate, reason := s.fetchProviderRates(timeoutCtx, details.BagSize, provider)
+			rate, reason := s.fetchProviderRates(timeoutCtx, bagSize, provider)
 			if reason != "" {
 				resp.Declines = append(resp.Declines, v1.ProviderDecline{
 					ProviderKey: provider,
@@ -88,7 +103,7 @@ func (s *service) FetchProvidersRates(ctx context.Context, req v1.OffersRequest)
 		}()
 	}
 
-	return resp, nil
+	return
 }
 
 func (s *service) InitStorageContract(ctx context.Context, info v1.InitStorageContractRequest, providers []v1.ProviderShort) (resp v1.Transaction, err error) {
@@ -190,6 +205,64 @@ func (s *service) InitStorageContract(ctx context.Context, info v1.InitStorageCo
 		Body:      b,
 		StateInit: si,
 		Amount:    info.Amount,
+	}
+
+	return
+}
+
+func (s *service) EditStorageContract(ctx context.Context, contractAddr string, amount uint64, providers []v1.ProviderShort) (resp v1.Transaction, err error) {
+	log := s.logger.With(
+		"method", "EditStorageContract",
+		"contract_address", contractAddr,
+	)
+
+	addr, err := address.ParseAddr(contractAddr)
+	if err != nil {
+		log.Error("failed to parse address", slog.String("error", err.Error()))
+		err = models.NewAppError(models.BadRequestErrorCode, "invalid address")
+		return
+	}
+
+	providersDict := cell.NewDict(256)
+	for _, p := range providers {
+		d, dErr := hex.DecodeString(p.Pubkey)
+		if dErr != nil {
+			log.Error("failed to decode provider address", slog.String("error", dErr.Error()))
+			err = models.NewAppError(models.BadRequestErrorCode, "invalid provider address")
+			return
+		}
+
+		pAddr := address.NewAddress(0, 0, d)
+		if pAddr == nil {
+			log.Error("failed to parse provider address", "provider", p.Pubkey)
+			err = models.NewAppError(models.BadRequestErrorCode, "invalid provider address")
+			return
+		}
+
+		err = providersDict.SetIntKey(new(big.Int).SetBytes(pAddr.Data()),
+			cell.BeginCell().
+				MustStoreUInt(p.MaxSpan, 32).
+				MustStoreBigCoins(big.NewInt(int64(p.PricePerMBDay))).
+				EndCell())
+		if err != nil {
+			err = models.NewAppError(models.InternalServerErrorCode, "failed to set provider data")
+			return
+		}
+	}
+
+	body := cell.BeginCell().
+		MustStoreUInt(0x3dc680ae, 32).
+		MustStoreUInt(uint64(rand.Int63()), 64).
+		MustStoreDict(providersDict).
+		EndCell()
+
+	b := base64.StdEncoding.EncodeToString(body.ToBOC())
+
+	resp = v1.Transaction{
+		Address:   addr.String(),
+		Body:      b,
+		StateInit: "",
+		Amount:    amount,
 	}
 
 	return

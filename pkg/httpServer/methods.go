@@ -219,6 +219,102 @@ func (h *handler) fetchProvidersOffers(c *fiber.Ctx) error {
 	return c.JSON(resp)
 }
 
+func (h *handler) topupBalance(c *fiber.Ctx) error {
+	log := h.logger.With(
+		slog.String("method", c.Method()),
+		slog.String("url", c.OriginalURL()),
+	)
+
+	address, ok := c.Context().UserValue("address").(string)
+	if !ok || address == "" {
+		log.Error("no user address after successful auth")
+		return fiber.NewError(fiber.StatusInternalServerError, "")
+	}
+
+	var req v1.TopupRequest
+	if err := c.BodyParser(&req); err != nil {
+		log.Error("failed to parse request", slog.Any("error", err))
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
+	}
+
+	resp, err := h.contracts.TopupBalance(c.Context(), address, req)
+	if err != nil {
+		return errorHandler(c, err)
+	}
+
+	return c.JSON(resp)
+}
+
+func (h *handler) withdrawBalance(c *fiber.Ctx) error {
+	log := h.logger.With(
+		slog.String("method", c.Method()),
+		slog.String("url", c.OriginalURL()),
+	)
+
+	address, ok := c.Context().UserValue("address").(string)
+	if !ok || address == "" {
+		log.Error("no user address after successful auth")
+		return fiber.NewError(fiber.StatusInternalServerError, "")
+	}
+
+	var req v1.WithdrawRequest
+	if err := c.BodyParser(&req); err != nil {
+		log.Error("failed to parse request", slog.Any("error", err))
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
+	}
+
+	resp, err := h.contracts.WithdrawBalance(c.Context(), address, req)
+	if err != nil {
+		return errorHandler(c, err)
+	}
+
+	return c.JSON(resp)
+}
+
+func (h *handler) updateProviders(c *fiber.Ctx) error {
+	log := h.logger.With(
+		slog.String("method", c.Method()),
+		slog.String("url", c.OriginalURL()),
+	)
+
+	var req v1.UpdateProvidersRequest
+	if err := c.BodyParser(&req); err != nil {
+		log.Error("failed to parse request", slog.Any("error", err))
+		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
+	}
+
+	rates := h.providers.FetchProvidersRatesBySize(c.Context(), req.BagSize, req.Providers)
+	if len(rates.Offers) != len(req.Providers) {
+		log.Error("not all providers returned offers", slog.Int("expected", len(req.Providers)), slog.Int("received", len(rates.Offers)))
+		return fiber.NewError(fiber.StatusBadRequest, "some providers unavailable")
+	}
+
+	providersOffers := make([]v1.ProviderShort, 0, len(rates.Offers))
+	for _, offer := range rates.Offers {
+		index := slices.IndexFunc(req.Providers, func(key string) bool {
+			return strings.EqualFold(key, offer.Provider.Key)
+		})
+
+		if index == -1 {
+			log.Error("some providers unavailable", slog.String("provider_key", offer.Provider.Key))
+			return fiber.NewError(fiber.StatusBadRequest, "some providers unavailable, please, try again")
+		}
+
+		providersOffers = append(providersOffers, v1.ProviderShort{
+			Pubkey:        offer.Provider.Key,
+			MaxSpan:       offer.OfferSpan,
+			PricePerMBDay: offer.PricePerMB,
+		})
+	}
+
+	resp, err := h.providers.EditStorageContract(c.Context(), req.ContractAddress, req.Amount, providersOffers)
+	if err != nil {
+		return errorHandler(c, err)
+	}
+
+	return c.JSON(resp)
+}
+
 func (h *handler) initStorageContract(c *fiber.Ctx) error {
 	log := h.logger.With(
 		slog.String("method", c.Method()),
