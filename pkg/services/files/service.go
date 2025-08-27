@@ -2,7 +2,6 @@ package files
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
@@ -63,18 +62,30 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		slog.Int("file_count", len(files)),
 	)
 
-	// todo: check if already has unpaid files
+	unpaid, err := s.files.GetUnpaidBags(ctx, userAddr)
+	if err != nil {
+		log.Error("Failed to get unpaid bags", slog.Any("error", err))
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
+	}
+
+	if len(unpaid) > 0 {
+		err = models.NewAppError(models.BadRequestErrorCode, "you have unpaid bags")
+		return
+	}
 
 	id, uErr := uuid.NewV6()
 	if uErr != nil {
 		log.Error("Failed to generate UUID", slog.Any("error", uErr))
-		return "", fmt.Errorf("failed to generate UUID: %w", uErr)
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
 	}
 
 	dstPath := filepath.Join(s.storageDir, id.String())
-	if err := os.MkdirAll(dstPath, 0755); err != nil {
-		log.Error("Failed to create directory", slog.Any("error", err))
-		return "", fmt.Errorf("failed to create directory %s: %w", dstPath, err)
+	if oErr := os.MkdirAll(dstPath, 0755); oErr != nil {
+		log.Error("Failed to create directory", slog.Any("error", oErr))
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
 	}
 
 	// Remove the directory if handling an error
@@ -89,10 +100,11 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 	// Save files to disk
 	rootDir := ""
 	for _, f := range files {
-		src, err := f.Open()
-		if err != nil {
-			log.Error("Failed to open uploaded file", slog.Any("error", err))
-			return "", fmt.Errorf("failed to open file %s: %w", f.Filename, err)
+		src, fErr := f.Open()
+		if fErr != nil {
+			log.Error("Failed to open uploaded file", slog.Any("error", fErr))
+			err = models.NewAppError(models.InternalServerErrorCode, "")
+			return
 		}
 		defer src.Close()
 
@@ -118,21 +130,23 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 			subDir := filepath.Join(dstPath, filepath.Dir(fileName))
 			if err := os.MkdirAll(subDir, 0755); err != nil {
 				log.Error("Failed to create subdirectory", slog.Any("error", err))
-				return "", fmt.Errorf("failed to create subdirectory %s: %w", subDir, err)
+				return "", models.NewAppError(models.InternalServerErrorCode, "")
 			}
 		}
 
-		dst, err := os.Create(filepath.Join(dstPath, fileName))
-		if err != nil {
-			log.Error("Failed to create file on disk", slog.Any("error", err))
-			return "", fmt.Errorf("failed to create file %s: %w", dstPath, err)
+		dst, cErr := os.Create(filepath.Join(dstPath, fileName))
+		if cErr != nil {
+			log.Error("Failed to create file on disk", slog.Any("error", cErr))
+			err = models.NewAppError(models.InternalServerErrorCode, "")
+			return
 		}
 		defer dst.Close()
 
-		_, err = io.Copy(dst, src)
-		if err != nil {
-			log.Error("Failed to copy file to disk", slog.Any("error", err))
-			return "", fmt.Errorf("failed to save file %s: %w", dstPath, err)
+		_, cErr = io.Copy(dst, src)
+		if cErr != nil {
+			log.Error("Failed to copy file to disk", slog.Any("error", cErr))
+			err = models.NewAppError(models.InternalServerErrorCode, "")
+			return
 		}
 	}
 
@@ -148,13 +162,15 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 	bagid, err = s.tonstorage.Create(ctx, description, path)
 	if err != nil {
 		log.Error("Failed to create file in storage", slog.Any("error", err))
-		return "", err
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
 	}
 
 	bagInfo, err := s.tonstorage.GetBag(ctx, bagid)
 	if err != nil {
 		log.Error("Failed to get bag info", "error", err.Error())
-		return "", models.NewAppError(models.InternalServerErrorCode, "")
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
 	}
 
 	// Save bag info to database
@@ -165,12 +181,13 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 	}, userAddr)
 	if err != nil {
 		log.Error("Failed to save bag info to database", "error", err.Error())
-		return "", models.NewAppError(models.InternalServerErrorCode, "")
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
 	}
 
 	log.Info("File added successfully", slog.String("bag_id", bagid))
 
-	return bagid, nil
+	return
 }
 
 func (s *service) BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error) {
@@ -182,7 +199,7 @@ func (s *service) BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, 
 	bagDetails, err := s.tonstorage.GetBag(ctx, bagID)
 	if err != nil {
 		log.Error("Failed to get bag details", slog.Any("error", err))
-		err = fmt.Errorf("failed to get bag details: %w", err)
+		err = models.NewAppError(models.BadRequestErrorCode, "unknown bag id")
 		return
 	}
 
