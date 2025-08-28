@@ -71,6 +71,17 @@ func (m *metricsMiddleware) GetUnpaidBags(ctx context.Context, userID string) (b
 	return m.repo.GetUnpaidBags(ctx, userID)
 }
 
+func (m *metricsMiddleware) IsBagExpired(ctx context.Context, bagID string, userAddress string, sec uint64) (expired bool, err error) {
+	defer func(s time.Time) {
+		labels := []string{
+			"IsBagExpired", strconv.FormatBool(err != nil),
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.repo.IsBagExpired(ctx, bagID, userAddress, sec)
+}
+
 func (m *metricsMiddleware) MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (cnt int64, err error) {
 	defer func(s time.Time) {
 		labels := []string{

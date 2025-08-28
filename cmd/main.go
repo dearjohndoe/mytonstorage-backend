@@ -169,7 +169,7 @@ func run() (err error) {
 	filesWorker = filesworker.NewMetrics(workersRunCount, workersRunDuration, filesWorker)
 
 	// Services
-	providersSvc := providersService.NewService(providerClient, storage, config.System.MaxAllowedSpanDays, logger)
+	providersSvc := providersService.NewService(providerClient, filesRepo, storage, config.System.MaxAllowedSpanDays, config.System.UnpaidFilesLifetime, logger)
 
 	contractsSvc := contractsService.NewService(logger)
 
@@ -177,7 +177,7 @@ func run() (err error) {
 		filesRepo,
 		storage,
 		config.TONStorage.BagsDirForStorage,
-		config.System.UnpaidFilesLifetime,
+		config.System.UnpaidFilesLifetimePublic,
 		logger,
 	)
 	filesSvc = filesService.NewCacheMiddleware(filesSvc)

@@ -29,15 +29,21 @@ const (
 	providerRequestTimeout = 5 * time.Second
 )
 
+type files interface {
+	IsBagExpired(ctx context.Context, bagID string, userAddress string, sec uint64) (expired bool, err error)
+}
+
 type storage interface {
 	GetBag(ctx context.Context, bagId string) (*tonstorage.BagDetailed, error)
 }
 
 type service struct {
-	storage        storage
-	provider       *transport.Client
-	maxAllowedSpan uint64
-	logger         *slog.Logger
+	files               files
+	storage             storage
+	provider            *transport.Client
+	maxAllowedSpan      uint64
+	unpaidFilesLifetime time.Duration
+	logger              *slog.Logger
 }
 
 type Providers interface {
@@ -123,6 +129,26 @@ func (s *service) InitStorageContract(ctx context.Context, info v1.InitStorageCo
 		return
 	}
 
+	ownerAddr, err := address.ParseAddr(info.OwnerAddress)
+	if err != nil {
+		log.Error("failed to parse owner address", slog.String("error", err.Error()))
+		err = models.NewAppError(models.BadRequestErrorCode, "invalid owner address")
+		return
+	}
+
+	expired, err := s.files.IsBagExpired(ctx, info.BagID, ownerAddr.String(), uint64(s.unpaidFilesLifetime.Seconds()))
+	if err != nil {
+		log.Error("failed to check if bag is expired", slog.String("error", err.Error()))
+		err = models.NewAppError(models.BadRequestErrorCode, "file expired")
+		return
+	}
+
+	if expired {
+		log.Error("bag is expired", slog.String("bag_id", info.BagID))
+		err = models.NewAppError(models.BadRequestErrorCode, "bag is expired")
+		return
+	}
+
 	details, err := s.storage.GetBag(ctx, info.BagID)
 	if err != nil {
 		log.Error("failed to get bag details", slog.String("error", err.Error()))
@@ -141,13 +167,6 @@ func (s *service) InitStorageContract(ctx context.Context, info v1.InitStorageCo
 	if err != nil {
 		log.Error("failed to decode torrent hash", slog.String("error", err.Error()))
 		err = models.NewAppError(models.InternalServerErrorCode, "")
-		return
-	}
-
-	ownerAddr, err := address.ParseAddr(info.OwnerAddress)
-	if err != nil {
-		log.Error("failed to parse owner address", slog.String("error", err.Error()))
-		err = models.NewAppError(models.BadRequestErrorCode, "invalid owner address")
 		return
 	}
 
@@ -343,11 +362,13 @@ func (s *service) fetchProviderRates(ctx context.Context, bagSize uint64, provid
 	return
 }
 
-func NewService(provider *transport.Client, storage storage, maxAllowedSpanDays uint32, logger *slog.Logger) Providers {
+func NewService(provider *transport.Client, files files, storage storage, maxAllowedSpanDays uint32, unpaidFilesLifetime time.Duration, logger *slog.Logger) Providers {
 	return &service{
-		provider:       provider,
-		maxAllowedSpan: uint64(maxAllowedSpanDays) * 24 * 60 * 60,
-		storage:        storage,
-		logger:         logger,
+		provider:            provider,
+		maxAllowedSpan:      uint64(maxAllowedSpanDays) * 24 * 60 * 60,
+		unpaidFilesLifetime: unpaidFilesLifetime,
+		files:               files,
+		storage:             storage,
+		logger:              logger,
 	}
 }
