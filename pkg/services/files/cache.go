@@ -18,23 +18,6 @@ func (c *cacheMiddleware) AddFiles(ctx context.Context, description string, file
 	return c.svc.AddFiles(ctx, description, file, userAddr)
 }
 
-func (c *cacheMiddleware) BagInfo(ctx context.Context, bagID string) (*v1.BagInfo, error) {
-	key := "bag_info:" + bagID
-
-	if cached, found := c.cache.Get(key); found {
-		return cached.(*v1.BagInfo), nil
-	}
-
-	info, err := c.svc.BagInfo(ctx, bagID)
-	if err != nil {
-		return nil, err
-	}
-
-	c.cache.Set(key, info)
-
-	return info, nil
-}
-
 func (c *cacheMiddleware) DeleteBag(ctx context.Context, bagID string, userAddr string) (err error) {
 	err = c.svc.DeleteBag(ctx, bagID, userAddr)
 	if err != nil {
@@ -51,7 +34,7 @@ func (c *cacheMiddleware) MarkBagAsPaid(ctx context.Context, bagID string, userA
 	return c.svc.MarkBagAsPaid(ctx, bagID, userAddr, storageContract)
 }
 
-func (c *cacheMiddleware) GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error) {
+func (c *cacheMiddleware) GetUnpaidBags(ctx context.Context, userAddr string) (info v1.UnpaidBagsResponse, err error) {
 	return c.svc.GetUnpaidBags(ctx, userAddr)
 }
 

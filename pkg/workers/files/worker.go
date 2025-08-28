@@ -102,7 +102,6 @@ func (w *filesWorker) RemoveOldUnpaidFiles(ctx context.Context) (interval time.D
 	)
 
 	log := w.logger.With("worker", "RemoveOldUnpaidFiles")
-	log.Debug("removing unpaid files")
 
 	interval = successInterval
 
@@ -112,7 +111,7 @@ func (w *filesWorker) RemoveOldUnpaidFiles(ctx context.Context) (interval time.D
 		return
 	}
 
-	if len(removed) == 0 {
+	if len(removed) > 0 {
 		log.Info("removed old unpaid files", "count", len(removed))
 	}
 

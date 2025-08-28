@@ -173,7 +173,13 @@ func run() (err error) {
 
 	contractsSvc := contractsService.NewService(logger)
 
-	filesSvc := filesService.NewService(filesRepo, storage, config.TONStorage.BagsDirForStorage, logger)
+	filesSvc := filesService.NewService(
+		filesRepo,
+		storage,
+		config.TONStorage.BagsDirForStorage,
+		config.System.UnpaidFilesLifetime,
+		logger,
+	)
 	filesSvc = filesService.NewCacheMiddleware(filesSvc)
 
 	seed, err := hex.DecodeString(config.System.AuthPrivateKey)

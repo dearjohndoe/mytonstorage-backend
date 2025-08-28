@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/xssnick/tonutils-go/address"
@@ -23,10 +24,11 @@ const (
 )
 
 type service struct {
-	files      filesDb
-	tonstorage storage
-	storageDir string
-	logger     *slog.Logger
+	files               filesDb
+	tonstorage          storage
+	storageDir          string
+	unpaidFilesLifetime time.Duration
+	logger              *slog.Logger
 }
 
 type storage interface {
@@ -48,10 +50,9 @@ type filesDb interface {
 
 type Files interface {
 	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader, userAddr string) (bagid string, err error)
-	BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error)
 	DeleteBag(ctx context.Context, bagID string, userAddr string) error
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (err error)
-	GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error)
+	GetUnpaidBags(ctx context.Context, userAddr string) (info v1.UnpaidBagsResponse, err error)
 	GetBagsInfoShort(ctx context.Context, contracts []string) (info []v1.BagInfoShort, err error)
 }
 
@@ -177,7 +178,7 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 	err = s.files.AddBag(ctx, db.BagInfo{
 		BagID:       bagid,
 		Description: description,
-		Size:        bagInfo.Size,
+		Size:        bagInfo.BagSize,
 	}, userAddr)
 	if err != nil {
 		log.Error("Failed to save bag info to database", "error", err.Error())
@@ -186,31 +187,6 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 	}
 
 	log.Info("File added successfully", slog.String("bag_id", bagid))
-
-	return
-}
-
-func (s *service) BagInfo(ctx context.Context, bagID string) (info *v1.BagInfo, err error) {
-	log := s.logger.With(
-		slog.String("method", "BagInfo"),
-		slog.String("bag_id", bagID),
-	)
-
-	bagDetails, err := s.tonstorage.GetBag(ctx, bagID)
-	if err != nil {
-		log.Error("Failed to get bag details", slog.Any("error", err))
-		err = models.NewAppError(models.BadRequestErrorCode, "unknown bag id")
-		return
-	}
-
-	info = &v1.BagInfo{
-		BagID:       bagDetails.BagID,
-		Description: bagDetails.Description,
-		Size:        bagDetails.Size,
-		Peers:       len(bagDetails.Peers),
-		FilesCount:  bagDetails.FilesCount,
-		BagSize:     bagDetails.BagSize,
-	}
 
 	return
 }
@@ -255,7 +231,7 @@ func (s *service) MarkBagAsPaid(ctx context.Context, bagID, userAddress, storage
 	return nil
 }
 
-func (s *service) GetUnpaidBags(ctx context.Context, userAddr string) (info []v1.UserBagInfo, err error) {
+func (s *service) GetUnpaidBags(ctx context.Context, userAddr string) (info v1.UnpaidBagsResponse, err error) {
 	log := s.logger.With(
 		slog.String("method", "GetUnpaidBags"),
 		slog.String("user_address", userAddr),
@@ -264,20 +240,31 @@ func (s *service) GetUnpaidBags(ctx context.Context, userAddr string) (info []v1
 	unpaidBags, err := s.files.GetUnpaidBags(ctx, userAddr)
 	if err != nil {
 		log.Error("Failed to get unpaid bags", "error", err)
-		return nil, models.NewAppError(models.InternalServerErrorCode, "")
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
 	}
 
+	info.Bags = make([]v1.UserBagInfo, 0, len(unpaidBags))
 	for _, bag := range unpaidBags {
-		info = append(info, v1.UserBagInfo{
-			BagID:           bag.BagID,
-			UserAddress:     bag.UserAddress,
-			StorageContract: bag.StorageContract,
-			CreatedAt:       bag.CreatedAt,
-			UpdatedAt:       bag.UpdatedAt,
+		bagDetails, sErr := s.tonstorage.GetBag(ctx, bag.BagID)
+		if sErr != nil {
+			log.Error("Failed to get bag details", slog.Any("error", sErr))
+			continue
+		}
+
+		info.Bags = append(info.Bags, v1.UserBagInfo{
+			BagID:       bag.BagID,
+			UserAddress: bag.UserAddress,
+			CreatedAt:   bag.CreatedAt,
+			Description: bagDetails.Description,
+			FilesCount:  bagDetails.FilesCount,
+			BagSize:     bagDetails.BagSize,
 		})
 	}
 
-	return info, nil
+	info.FreeStorage = uint64(s.unpaidFilesLifetime.Seconds())
+
+	return
 }
 
 func (s *service) GetBagsInfoShort(ctx context.Context, contracts []string) (info []v1.BagInfoShort, err error) {
@@ -313,12 +300,14 @@ func NewService(
 	files filesDb,
 	storage storage,
 	storageDir string,
+	unpaidFilesLifetime time.Duration,
 	logger *slog.Logger,
 ) Files {
 	return &service{
-		files:      files,
-		tonstorage: storage,
-		storageDir: storageDir,
-		logger:     logger,
+		files:               files,
+		tonstorage:          storage,
+		storageDir:          storageDir,
+		unpaidFilesLifetime: unpaidFilesLifetime,
+		logger:              logger,
 	}
 }

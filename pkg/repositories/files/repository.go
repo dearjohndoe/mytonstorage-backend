@@ -126,7 +126,7 @@ func (r *repository) RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids [
 func (r *repository) GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error) {
 	var bags []db.UserBagInfo
 	query := `
-		SELECT bagid, user_address, created_at, updated_at
+		SELECT bagid, user_address, created_at
 		FROM files.bag_users
 		WHERE user_address = $1 AND storage_contract IS NULL;
 	`
@@ -139,12 +139,10 @@ func (r *repository) GetUnpaidBags(ctx context.Context, userID string) ([]db.Use
 	for rows.Next() {
 		var bag db.UserBagInfo
 		var createdAt *time.Time
-		var updatedAt *time.Time
-		if err := rows.Scan(&bag.BagID, &bag.UserAddress, &createdAt, &updatedAt); err != nil {
+		if err := rows.Scan(&bag.BagID, &bag.UserAddress, &createdAt); err != nil {
 			return nil, err
 		}
 		bag.CreatedAt = createdAt.Unix()
-		bag.UpdatedAt = updatedAt.Unix()
 		bags = append(bags, bag)
 	}
 
