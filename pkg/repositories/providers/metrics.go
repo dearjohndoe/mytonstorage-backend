@@ -27,6 +27,17 @@ func (m *metricsMiddleware) AddProviderToNotifyQueue(ctx context.Context, notifi
 	return m.repo.AddProviderToNotifyQueue(ctx, notifications)
 }
 
+func (m *metricsMiddleware) GetProvidersInProgress(ctx context.Context, limit int, maxDownloadChecks int) (notifications []db.ProviderNotification, err error) {
+	defer func(s time.Time) {
+		labels := []string{
+			"GetProvidersInProgress", strconv.FormatBool(err != nil),
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.repo.GetProvidersInProgress(ctx, limit, maxDownloadChecks)
+}
+
 func (m *metricsMiddleware) GetProvidersToNotify(ctx context.Context, limit int, notifyAttempts int) (notifications []db.ProviderNotification, err error) {
 	defer func(s time.Time) {
 		labels := []string{
@@ -36,6 +47,17 @@ func (m *metricsMiddleware) GetProvidersToNotify(ctx context.Context, limit int,
 		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
 	}(time.Now())
 	return m.repo.GetProvidersToNotify(ctx, limit, notifyAttempts)
+}
+
+func (m *metricsMiddleware) IncreaseDownloadChecks(ctx context.Context, notifications []db.ProviderNotification) error {
+	defer func(s time.Time) {
+		labels := []string{
+			"IncreaseDownloadChecks", "true",
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.repo.IncreaseDownloadChecks(ctx, notifications)
 }
 
 func (m *metricsMiddleware) IncreaseNotifyAttempts(ctx context.Context, notifications []db.ProviderNotification) (err error) {
@@ -49,15 +71,15 @@ func (m *metricsMiddleware) IncreaseNotifyAttempts(ctx context.Context, notifica
 	return m.repo.IncreaseNotifyAttempts(ctx, notifications)
 }
 
-func (m *metricsMiddleware) ArchiveNotifications(ctx context.Context, notifications []db.ProviderNotification) (err error) {
+func (m *metricsMiddleware) MarkAsNotified(ctx context.Context, notifications []db.ProviderNotification) (err error) {
 	defer func(s time.Time) {
 		labels := []string{
-			"ArchiveNotifications", strconv.FormatBool(err != nil),
+			"MarkAsNotified", strconv.FormatBool(err != nil),
 		}
 		m.reqCount.WithLabelValues(labels...).Add(1)
 		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
 	}(time.Now())
-	return m.repo.ArchiveNotifications(ctx, notifications)
+	return m.repo.MarkAsNotified(ctx, notifications)
 }
 
 func NewMetrics(reqCount *prometheus.CounterVec, reqDuration *prometheus.HistogramVec, repo Repository) Repository {

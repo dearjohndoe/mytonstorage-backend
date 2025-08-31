@@ -203,7 +203,7 @@ func (s *service) DeleteBag(ctx context.Context, bagID string, userAddr string) 
 		return models.NewAppError(models.InternalServerErrorCode, "")
 	}
 
-	// NOTE: File will be removed automatically by RemoveUnusedFiles worker
+	// NOTE: File will be removed automatically by RemoveUnpaidFiles worker
 	log.Info("Bag marked to be deleted successfully")
 
 	return nil

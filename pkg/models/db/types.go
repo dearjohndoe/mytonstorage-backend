@@ -31,4 +31,5 @@ type ProviderNotification struct {
 	StorageContract string `json:"storage_contract"`
 	ProviderPubkey  string `json:"provider_pubkey"`
 	Size            uint64 `json:"size"`
+	Downloaded      uint64 `json:"downloaded"`
 }

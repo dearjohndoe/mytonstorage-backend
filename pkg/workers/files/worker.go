@@ -27,9 +27,11 @@ type filesDb interface {
 
 type providersDb interface {
 	AddProviderToNotifyQueue(ctx context.Context, notifications []db.ProviderNotification) error
+	GetProvidersInProgress(ctx context.Context, limit int, maxDownloadChecks int) (notifications []db.ProviderNotification, err error)
 	GetProvidersToNotify(ctx context.Context, limit int, notifyAttempts int) (notifications []db.ProviderNotification, err error)
+	IncreaseDownloadChecks(ctx context.Context, notifications []db.ProviderNotification) error
 	IncreaseNotifyAttempts(ctx context.Context, notifications []db.ProviderNotification) error
-	ArchiveNotifications(ctx context.Context, notifications []db.ProviderNotification) error
+	MarkAsNotified(ctx context.Context, notifications []db.ProviderNotification) error
 }
 
 type storage interface {
@@ -51,24 +53,26 @@ type filesWorker struct {
 }
 
 type Worker interface {
-	RemoveUnusedFiles(ctx context.Context) (interval time.Duration, err error)
-	RemoveOldUnpaidFiles(ctx context.Context) (interval time.Duration, err error)
+	RemoveUnpaidFiles(ctx context.Context) (interval time.Duration, err error)
+	MarkToRemoveUnpaidFiles(ctx context.Context) (interval time.Duration, err error)
+
 	TriggerProvidersDownload(ctx context.Context) (interval time.Duration, err error)
+	DownloadChecker(ctx context.Context) (interval time.Duration, err error)
+
 	CollectContractProvidersToNotify(ctx context.Context) (interval time.Duration, err error)
 }
 
 // This worker check table bags and if some bag have no users(in bag_users) it will be removed from db and from disk.
-func (w *filesWorker) RemoveUnusedFiles(ctx context.Context) (interval time.Duration, err error) {
+func (w *filesWorker) RemoveUnpaidFiles(ctx context.Context) (interval time.Duration, err error) {
 	const (
 		failureInterval = 5 * time.Second
 		successInterval = 1 * time.Minute
 	)
 
-	log := w.logger.With("worker", "RemoveUnusedFiles")
+	log := w.logger.With("worker", "RemoveUnpaidFiles")
 
 	interval = successInterval
 
-	// TODO: first check if they paid
 	removed, err := w.filesDb.RemoveUnusedBags(ctx)
 	if err != nil {
 		interval = failureInterval
@@ -94,14 +98,13 @@ func (w *filesWorker) RemoveUnusedFiles(ctx context.Context) (interval time.Dura
 	return
 }
 
-// Removes files that are unpaid and older than the choosen period
-func (w *filesWorker) RemoveOldUnpaidFiles(ctx context.Context) (interval time.Duration, err error) {
+func (w *filesWorker) MarkToRemoveUnpaidFiles(ctx context.Context) (interval time.Duration, err error) {
 	const (
 		failureInterval = 5 * time.Second
 		successInterval = 1 * time.Minute
 	)
 
-	log := w.logger.With("worker", "RemoveOldUnpaidFiles")
+	log := w.logger.With("worker", "MarkToRemoveUnpaidFiles")
 
 	interval = successInterval
 
@@ -142,6 +145,8 @@ func (w *filesWorker) TriggerProvidersDownload(ctx context.Context) (interval ti
 		interval = nothingToUpdateInterval
 	}
 
+	notified, failed := w.checkProvidersStorageInfo(ctx, providersToNotify)
+
 	// Defer increasing attempts if there's an error
 	defer func() {
 		if err != nil {
@@ -149,68 +154,70 @@ func (w *filesWorker) TriggerProvidersDownload(ctx context.Context) (interval ti
 		}
 	}()
 
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	var notified []db.ProviderNotification
-	for _, provider := range providersToNotify {
-		toProof := r.Uint64() % uint64(math.Max(float64(provider.Size), 1))
-		sc, cErr := address.ParseAddr(provider.StorageContract)
-		if cErr != nil {
-			log.Error("failed to parse storage contract address",
-				"error", cErr.Error(),
-				"storage_contract", provider.StorageContract)
-			continue
-		}
-
-		func() {
-			timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			defer cancel()
-
-			providerKey, err := hex.DecodeString(provider.ProviderPubkey)
-			if err != nil {
-				log.Error("failed to decode provider pubkey",
-					"error", err.Error(),
-					"provider_pubkey", provider.ProviderPubkey)
-				return
-			}
-
-			_, pErr := w.provider.RequestStorageInfo(timeoutCtx, providerKey, sc, toProof)
-			if pErr != nil {
-				log.Error("failed to notify provider",
-					"error", pErr.Error(),
-					"provider_pubkey", provider.ProviderPubkey)
-				return
-			}
-
-			notified = append(notified, provider)
-		}()
+	if len(failed) > 0 {
+		_ = w.providersDb.IncreaseNotifyAttempts(ctx, failed)
+		log.Warn("Some providers failed notification check", "failed_count", len(failed))
 	}
 
 	if len(notified) > 0 {
-		aErr := w.providersDb.ArchiveNotifications(ctx, notified)
+		aErr := w.providersDb.MarkAsNotified(ctx, notified)
 		if aErr != nil {
-			err = fmt.Errorf("failed to archive notifications: %w", aErr)
+			err = fmt.Errorf("failed to mark as notified: %w", aErr)
 			interval = failureInterval
 			return
 		}
 
-		var iErr error
-		if len(notified) < len(providersToNotify) {
-			iErr = w.providersDb.IncreaseNotifyAttempts(ctx, providersToNotify)
-			if iErr != nil {
-				log.Error("failed to increase notify attempts", "error", iErr.Error())
-			}
-		}
-
-		if iErr == nil {
-			log.Info("Providers successfully notified", "count", len(notified))
-		}
+		log.Info("Providers successfully checked and marked as notified", "count", len(notified))
 	}
 
 	return
 }
 
-// Collects providers for each storage contract that needs to be notified
+func (w *filesWorker) DownloadChecker(ctx context.Context) (interval time.Duration, err error) {
+	const (
+		failureInterval         = 5 * time.Second
+		successInterval         = 1 * time.Second
+		nothingToUpdateInterval = 1 * time.Minute
+		batch                   = 20
+		maxDownloadChecks       = 10
+	)
+
+	log := w.logger.With("worker", "DownloadChecker")
+
+	interval = successInterval
+
+	providersToCheck, err := w.providersDb.GetProvidersInProgress(ctx, batch, maxDownloadChecks)
+	if err != nil {
+		err = fmt.Errorf("failed to get providers to notify: %w", err)
+		interval = failureInterval
+		return
+	}
+
+	if len(providersToCheck) < batch {
+		interval = nothingToUpdateInterval
+	}
+
+	checked, failed := w.checkProvidersStorageInfo(ctx, providersToCheck)
+
+	if len(failed) > 0 {
+		_ = w.providersDb.IncreaseDownloadChecks(ctx, failed)
+		log.Info("Some providers failed download check", "failed_count", len(failed))
+	}
+
+	if len(checked) > 0 {
+		aErr := w.providersDb.IncreaseDownloadChecks(ctx, checked)
+		if aErr != nil {
+			err = fmt.Errorf("failed to mark as notified: %w", aErr)
+			interval = failureInterval
+			return
+		}
+
+		log.Info("Providers successfully checked for download", "count", len(checked))
+	}
+
+	return
+}
+
 func (w *filesWorker) CollectContractProvidersToNotify(ctx context.Context) (interval time.Duration, err error) {
 	const (
 		failureInterval         = 5 * time.Second
@@ -292,6 +299,63 @@ func (w *filesWorker) CollectContractProvidersToNotify(ctx context.Context) (int
 
 	if len(providersToNotify) > 0 {
 		log.Info("Provider - contract relations added to notify queue", "count", len(providersToNotify))
+	}
+
+	return
+}
+
+func (w *filesWorker) checkProvidersStorageInfo(ctx context.Context, providers []db.ProviderNotification) (checked []db.ProviderNotification, failed []db.ProviderNotification) {
+	log := w.logger.With("worker", "checkProvidersStorageInfo")
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for _, provider := range providers {
+		toProof := r.Uint64() % uint64(math.Max(float64(provider.Size), 1))
+		sc, cErr := address.ParseAddr(provider.StorageContract)
+		if cErr != nil {
+			log.Error("failed to parse storage contract address",
+				"error", cErr.Error(),
+				"storage_contract", provider.StorageContract)
+			continue
+		}
+
+		fErr := func() error {
+			timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+
+			providerKey, dErr := hex.DecodeString(provider.ProviderPubkey)
+			if dErr != nil {
+				log.Error("failed to decode provider pubkey",
+					"error", dErr.Error(),
+					"provider_pubkey", provider.ProviderPubkey)
+				return dErr
+			}
+
+			info, rErr := w.provider.RequestStorageInfo(timeoutCtx, providerKey, sc, toProof)
+			if rErr != nil {
+				log.Error("failed to notify provider",
+					"error", rErr.Error(),
+					"provider_pubkey", provider.ProviderPubkey)
+				return rErr
+			}
+
+			if info.Status == "error" {
+				log.Error("provider returned error status",
+					"error", info.Reason,
+					"provider_pubkey", provider.ProviderPubkey)
+				return fmt.Errorf("%s", info.Reason)
+			}
+
+			if len(info.Proof) > 0 {
+				provider.Downloaded = info.Downloaded
+				checked = append(checked, provider)
+			}
+
+			return nil
+		}()
+		if fErr != nil {
+			failed = append(failed, provider)
+		}
 	}
 
 	return
