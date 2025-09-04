@@ -4,6 +4,7 @@ type BagInfo struct {
 	BagID       string `json:"bagid"`
 	Description string `json:"description"`
 	Size        uint64 `json:"size"`
+	FilesSize   uint64 `json:"files_size"`
 	CreatedAt   int64  `json:"created_at"`
 }
 
@@ -15,17 +16,15 @@ type BagDescription struct {
 }
 
 type UserBagInfo struct {
-	BagID           string `json:"bagid"`
-	UserAddress     string `json:"user_address"`
-	StorageContract string `json:"storage_contract"`
-	CreatedAt       int64  `json:"created_at"`
-	UpdatedAt       int64  `json:"updated_at"`
+	BagID       string `json:"bagid"`
+	UserAddress string `json:"user_address"`
+	CreatedAt   int64  `json:"created_at"`
 }
 
 type BagStorageContract struct {
 	BagID           string `json:"bagid"`
 	StorageContract string `json:"storage_contract"`
-	Size            uint64 `json:"size"`
+	FilesSize       uint64 `json:"files_size"`
 }
 
 type ProviderNotification struct {
@@ -33,4 +32,5 @@ type ProviderNotification struct {
 	StorageContract string `json:"storage_contract"`
 	ProviderPubkey  string `json:"provider_pubkey"`
 	Size            uint64 `json:"size"`
+	Downloaded      uint64 `json:"downloaded"`
 }

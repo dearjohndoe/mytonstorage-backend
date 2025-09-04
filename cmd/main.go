@@ -157,15 +157,37 @@ func run() (err error) {
 	cleanerWorker := cleaner.NewWorker(filesRepo, config.System.StoreHistoryDays, logger)
 	cleanerWorker = cleaner.NewMetrics(workersRunCount, workersRunDuration, cleanerWorker)
 
-	filesWorker := filesworker.NewWorker(filesRepo, providerRepo, storage, providerClient, tonContractsClient, config.System.StoreHistoryDays, logger)
+	filesWorker := filesworker.NewWorker(
+		filesRepo,
+		providerRepo,
+		storage,
+		providerClient,
+		tonContractsClient,
+		config.System.UnpaidFilesLifetime,
+		config.System.PaidFilesLifetime,
+		logger,
+	)
 	filesWorker = filesworker.NewMetrics(workersRunCount, workersRunDuration, filesWorker)
 
 	// Services
-	providersSvc := providersService.NewService(providerClient, storage, config.System.MaxAllowedSpanDays, logger)
+	providersSvc := providersService.NewService(
+		providerClient,
+		filesRepo,
+		storage,
+		config.System.MaxAllowedSpanDays,
+		config.System.UnpaidFilesLifetime,
+		logger,
+	)
 
 	contractsSvc := contractsService.NewService(logger)
 
-	filesSvc := filesService.NewService(filesRepo, storage, config.TONStorage.BagsDirForStorage, logger)
+	filesSvc := filesService.NewService(
+		filesRepo,
+		storage,
+		config.TONStorage.BagsDirForStorage,
+		config.System.UnpaidFilesLifetimePublic,
+		logger,
+	)
 	filesSvc = filesService.NewCacheMiddleware(filesSvc)
 
 	seed, err := hex.DecodeString(config.System.AuthPrivateKey)

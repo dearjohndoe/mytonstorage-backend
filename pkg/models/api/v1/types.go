@@ -9,16 +9,7 @@ type PaidBagRequest struct {
 	StorageContract string `json:"storage_contract"`
 }
 
-type BagInfo struct {
-	BagID       string `json:"bag_id"`
-	Description string `json:"description"`
-	Size        uint64 `json:"size"`
-	FilesCount  uint64 `json:"files_count"`
-	BagSize     uint64 `json:"bag_size"`
-	Peers       int    `json:"peers"`
-}
-
-type DescriptionsRequest struct {
+type DetailsRequest struct {
 	ContractsAddresses []string `json:"contracts"`
 }
 
@@ -30,11 +21,12 @@ type BagInfoShort struct {
 }
 
 type UserBagInfo struct {
-	BagID           string `json:"bag_id"`
-	UserAddress     string `json:"user_address"`
-	StorageContract string `json:"storage_contract"`
-	CreatedAt       int64  `json:"created_at"`
-	UpdatedAt       int64  `json:"updated_at"`
+	BagID       string `json:"bag_id"`
+	UserAddress string `json:"user_address"`
+	Description string `json:"description"`
+	FilesCount  uint64 `json:"files_count"`
+	BagSize     uint64 `json:"bag_size"`
+	CreatedAt   int64  `json:"created_at"`
 }
 
 type LoginInfo struct {
@@ -70,6 +62,11 @@ type TopupRequest struct {
 
 type WithdrawRequest struct {
 	ContractAddress string `json:"address"`
+}
+
+type UnpaidBagsResponse struct {
+	Bags        []UserBagInfo `json:"bags"`
+	FreeStorage uint64        `json:"free_storage"`
 }
 
 type InitStorageContractRequest struct {

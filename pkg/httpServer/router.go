@@ -45,7 +45,6 @@ func (h *handler) RegisterRoutes() {
 			files.Post("/details", h.GetBagsInfoShort)
 			files.Post("/unpaid", h.getUnpaid)
 			files.Delete("/:bag_id", h.deleteBag)
-			files.Get("/:bag_id", h.bagInfo)
 		}
 
 		{
