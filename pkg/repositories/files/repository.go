@@ -16,8 +16,9 @@ type repository struct {
 type Repository interface {
 	AddBag(ctx context.Context, bag db.BagInfo, userAddr string) error
 	RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (int64, error)
-	RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error)
+	RemoveUnpaidBagsRelations(ctx context.Context, sec uint64) (bagids []string, err error)
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
+	RemoveNotifiedBags(ctx context.Context, limit int, sec uint64, maxNotifyAttempts int, maxDownloadChecks int) (removed []string, err error)
 	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
 	IsBagExpired(ctx context.Context, bagID string, userAddress string, sec uint64) (expired bool, err error)
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (int64, error)
@@ -31,17 +32,17 @@ type Repository interface {
 func (r *repository) AddBag(ctx context.Context, bag db.BagInfo, userAddr string) error {
 	query := `
 		WITH add_file AS (
-			INSERT INTO files.bags (bagid, description, size, created_at)
-			VALUES ($1, $2, $3, NOW())
+			INSERT INTO files.bags (bagid, description, size, files_size, created_at)
+			VALUES ($1, $2, $3, $4, NOW())
 			ON CONFLICT (bagid) DO NOTHING
 			RETURNING bagid
 		)
 		INSERT INTO files.bag_users (bagid, user_address, storage_contract, created_at, updated_at)
-		VALUES ($1, $4, NULL, NOW(), NOW())
+		VALUES ($1, $5, NULL, NOW(), NOW())
 		ON CONFLICT (bagid, user_address) DO UPDATE 
 			SET updated_at = NOW();
 	`
-	_, err := r.db.Exec(ctx, query, bag.BagID, bag.Description, bag.Size, userAddr)
+	_, err := r.db.Exec(ctx, query, bag.BagID, bag.Description, bag.Size, bag.FilesSize, userAddr)
 	return err
 }
 
@@ -92,7 +93,7 @@ func (r *repository) RemoveUserBagRelation(ctx context.Context, bagID, userAddre
 	return
 }
 
-func (r *repository) RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error) {
+func (r *repository) RemoveUnpaidBagsRelations(ctx context.Context, sec uint64) (bagids []string, err error) {
 	query := `
 		WITH to_remove AS (
 			SELECT bu.bagid, bu.user_address
@@ -122,6 +123,55 @@ func (r *repository) RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids [
 	}
 
 	return bagids, nil
+}
+
+func (r *repository) RemoveNotifiedBags(ctx context.Context, limit int, sec uint64, maxNotifyAttempts int, maxDownloadChecks int) (removed []string, err error) {
+	query := `
+		WITH cte AS (
+			SELECT 
+				n.provider_pubkey, 
+				n.storage_contract, 
+				n.bagid, 
+				( 
+					(
+						(NOT n.notified AND n.notify_attempts > $1) -- failed to notify after N attempts
+						OR (n.notified AND n.download_checks > $2) -- failed download check after N attempts
+						OR (n.size = n.downloaded) -- fully downloaded
+					)
+					AND EXTRACT(EPOCH FROM (NOW() - n.updated_at)) > $3
+				) as can_delete
+			FROM providers.notifications n 
+		), del AS (
+			SELECT c.provider_pubkey, c.storage_contract
+			FROM cte c
+			WHERE c.bagid IN (
+				SELECT bagid 
+				FROM cte 
+				GROUP BY bagid 
+				HAVING MIN(can_delete::int) = 1  -- all can_delete must be true
+			)
+			LIMIT $4
+		)
+		DELETE FROM providers.notifications n
+		USING del
+		WHERE (n.provider_pubkey, n.storage_contract) = (del.provider_pubkey, del.storage_contract)
+		RETURNING n.bagid;`
+
+	rows, err := r.db.Query(ctx, query, maxNotifyAttempts, maxDownloadChecks, sec, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var bagID string
+		if err := rows.Scan(&bagID); err != nil {
+			return nil, err
+		}
+		removed = append(removed, bagID)
+	}
+
+	return removed, nil
 }
 
 func (r *repository) GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error) {
@@ -210,7 +260,7 @@ func (r *repository) GetBagsInfoShort(ctx context.Context, contracts []string) (
 func (r *repository) GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) (resp []db.BagStorageContract, err error) {
 	var info db.BagStorageContract
 	query := `
-		SELECT bu.bagid, bu.storage_contract, b.size
+		SELECT bu.bagid, bu.storage_contract, b.files_size
 		FROM files.bag_users bu
 			JOIN files.bags b ON b.bagid=bu.bagid
 		WHERE bu.storage_contract IS NOT NULL 
@@ -225,7 +275,7 @@ func (r *repository) GetNotifyInfo(ctx context.Context, limit int, notifyAttempt
 	defer rows.Close()
 
 	for rows.Next() {
-		if sErr := rows.Scan(&info.BagID, &info.StorageContract, &info.Size); sErr != nil {
+		if sErr := rows.Scan(&info.BagID, &info.StorageContract, &info.FilesSize); sErr != nil {
 			err = sErr
 			return
 		}

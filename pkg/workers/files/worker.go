@@ -20,7 +20,8 @@ import (
 
 type filesDb interface {
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
-	RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error)
+	RemoveUnpaidBagsRelations(ctx context.Context, sec uint64) (bagids []string, err error)
+	RemoveNotifiedBags(ctx context.Context, limit int, sec uint64, maxNotifyAttempts int, maxDownloadChecks int) (removed []string, err error)
 	GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) (resp []db.BagStorageContract, err error)
 	IncreaseAttempts(ctx context.Context, bags []db.BagStorageContract) error
 }
@@ -49,12 +50,14 @@ type filesWorker struct {
 	provider            *transport.Client
 	contractsClient     contractsClient
 	unpaidFilesLifetime time.Duration
+	paidFilesLieftime   time.Duration
 	logger              *slog.Logger
 }
 
 type Worker interface {
 	RemoveUnpaidFiles(ctx context.Context) (interval time.Duration, err error)
 	MarkToRemoveUnpaidFiles(ctx context.Context) (interval time.Duration, err error)
+	RemoveNotifiedFiles(ctx context.Context) (interval time.Duration, err error)
 
 	TriggerProvidersDownload(ctx context.Context) (interval time.Duration, err error)
 	DownloadChecker(ctx context.Context) (interval time.Duration, err error)
@@ -108,7 +111,7 @@ func (w *filesWorker) MarkToRemoveUnpaidFiles(ctx context.Context) (interval tim
 
 	interval = successInterval
 
-	removed, err := w.filesDb.RemoveUnpaidBags(ctx, uint64(w.unpaidFilesLifetime.Seconds()))
+	removed, err := w.filesDb.RemoveUnpaidBagsRelations(ctx, uint64(w.unpaidFilesLifetime.Seconds()))
 	if err != nil {
 		interval = failureInterval
 		return
@@ -121,11 +124,61 @@ func (w *filesWorker) MarkToRemoveUnpaidFiles(ctx context.Context) (interval tim
 	return
 }
 
+/*
+RemoveNotifiedFiles removes:
+
+(
+failed to notify after N attempts
+OR failed download check after N attempts
+OR fully downloaded
+)
+AND older than 1 hour
+
+Remove only if all same bagid can be deleted
+*/
+func (w *filesWorker) RemoveNotifiedFiles(ctx context.Context) (interval time.Duration, err error) {
+	const (
+		failureInterval   = 5 * time.Second
+		successInterval   = 1 * time.Minute
+		batch             = 20
+		maxNotifyAttempts = 3
+		maxDownloadChecks = 10
+	)
+
+	log := w.logger.With("worker", "RemoveNotifiedFiles")
+
+	interval = successInterval
+
+	removed, err := w.filesDb.RemoveNotifiedBags(ctx, batch, uint64(w.paidFilesLieftime.Seconds()), maxNotifyAttempts, maxDownloadChecks)
+	if err != nil {
+		interval = failureInterval
+		return
+	}
+
+	for _, bagID := range removed {
+		err = w.tonstorage.RemoveBag(ctx, bagID, true)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				log.Info("Bag already deleted")
+				continue
+			}
+
+			continue
+		}
+	}
+
+	if len(removed) > 0 {
+		log.Info("removed notified files", "count", len(removed))
+	}
+
+	return
+}
+
 func (w *filesWorker) TriggerProvidersDownload(ctx context.Context) (interval time.Duration, err error) {
 	const (
 		failureInterval         = 5 * time.Second
 		successInterval         = 1 * time.Second
-		nothingToUpdateInterval = 1 * time.Minute
+		nothingToUpdateInterval = 5 * time.Minute
 		batch                   = 20
 		maxNotifyAttempts       = 3
 	)
@@ -279,7 +332,7 @@ func (w *filesWorker) CollectContractProvidersToNotify(ctx context.Context) (int
 				BagID:           contractsToNotify[sliceIndex].BagID,
 				StorageContract: contract.Address,
 				ProviderPubkey:  pk,
-				Size:            contractsToNotify[sliceIndex].Size,
+				Size:            contractsToNotify[sliceIndex].FilesSize,
 			})
 		}
 	}
@@ -368,6 +421,7 @@ func NewWorker(
 	provider *transport.Client,
 	contractsClient contractsClient,
 	unpaidFilesLifetime time.Duration,
+	paidFilesLifetime time.Duration,
 	logger *slog.Logger,
 ) Worker {
 	return &filesWorker{
@@ -377,6 +431,7 @@ func NewWorker(
 		provider:            provider,
 		contractsClient:     contractsClient,
 		unpaidFilesLifetime: unpaidFilesLifetime,
+		paidFilesLieftime:   paidFilesLifetime,
 		logger:              logger,
 	}
 }

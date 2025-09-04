@@ -36,6 +36,17 @@ func (m *metricsMiddleware) MarkToRemoveUnpaidFiles(ctx context.Context) (interv
 	return m.worker.MarkToRemoveUnpaidFiles(ctx)
 }
 
+func (m *metricsMiddleware) RemoveNotifiedFiles(ctx context.Context) (interval time.Duration, err error) {
+	defer func(s time.Time) {
+		labels := []string{
+			"RemoveNotifiedFiles", strconv.FormatBool(err != nil),
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.worker.RemoveNotifiedFiles(ctx)
+}
+
 func (m *metricsMiddleware) TriggerProvidersDownload(ctx context.Context) (interval time.Duration, err error) {
 	defer func(s time.Time) {
 		labels := []string{

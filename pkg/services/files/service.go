@@ -179,6 +179,7 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		BagID:       bagid,
 		Description: description,
 		Size:        bagInfo.BagSize,
+		FilesSize:   bagInfo.Size,
 	}, userAddr)
 	if err != nil {
 		log.Error("Failed to save bag info to database", "error", err.Error())

@@ -38,15 +38,15 @@ func (m *metricsMiddleware) RemoveUserBagRelation(ctx context.Context, bagID, us
 	return m.repo.RemoveUserBagRelation(ctx, bagID, userAddress)
 }
 
-func (m *metricsMiddleware) RemoveUnpaidBags(ctx context.Context, sec uint64) (bagids []string, err error) {
+func (m *metricsMiddleware) RemoveUnpaidBagsRelations(ctx context.Context, sec uint64) (bagids []string, err error) {
 	defer func(s time.Time) {
 		labels := []string{
-			"RemoveUnpaidBags", strconv.FormatBool(err != nil),
+			"RemoveUnpaidBagsRelations", strconv.FormatBool(err != nil),
 		}
 		m.reqCount.WithLabelValues(labels...).Add(1)
 		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
 	}(time.Now())
-	return m.repo.RemoveUnpaidBags(ctx, sec)
+	return m.repo.RemoveUnpaidBagsRelations(ctx, sec)
 }
 
 func (m *metricsMiddleware) RemoveUnusedBags(ctx context.Context) (removed []string, err error) {
@@ -58,6 +58,17 @@ func (m *metricsMiddleware) RemoveUnusedBags(ctx context.Context) (removed []str
 		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
 	}(time.Now())
 	return m.repo.RemoveUnusedBags(ctx)
+}
+
+func (m *metricsMiddleware) RemoveNotifiedBags(ctx context.Context, limit int, sec uint64, maxNotifyAttempts int, maxDownloadChecks int) (removed []string, err error) {
+	defer func(s time.Time) {
+		labels := []string{
+			"RemoveNotifiedBags", strconv.FormatBool(err != nil),
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.repo.RemoveNotifiedBags(ctx, limit, sec, maxNotifyAttempts, maxDownloadChecks)
 }
 
 func (m *metricsMiddleware) GetUnpaidBags(ctx context.Context, userID string) (bags []db.UserBagInfo, err error) {

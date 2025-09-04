@@ -27,7 +27,8 @@ type System struct {
 	LogLevel                  uint8              `env:"SYSTEM_LOG_LEVEL" envDefault:"1"` // 0 - debug, 1 - info, 2 - warn, 3 - error
 	StoreHistoryDays          int                `env:"SYSTEM_STORE_HISTORY_DAYS" envDefault:"90"`
 	UnpaidFilesLifetime       time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME" envDefault:"20m"`
-	UnpaidFilesLifetimePublic time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME" envDefault:"15m"`
+	PaidFilesLifetime         time.Duration      `env:"SYSTEM_PAID_FILES_LIFETIME" envDefault:"48h"`
+	UnpaidFilesLifetimePublic time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME_PUBLIC" envDefault:"15m"`
 	MaxAllowedSpanDays        uint32             `env:"SYSTEM_MAX_ALLOWED_SPAN_DAYS" envDefault:"7"`
 }
 

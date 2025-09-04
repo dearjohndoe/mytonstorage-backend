@@ -95,15 +95,13 @@ func (r *repository) IncreaseDownloadChecks(ctx context.Context, notifications [
 		WITH cte AS (
 			SELECT storage_contract, provider_pubkey, downloaded
 			FROM jsonb_to_recordset($1::jsonb) AS x(storage_contract text, provider_pubkey text, downloaded bigint)
-		), upd AS (
-			UPDATE providers.notifications n
-			SET download_checks = download_checks + 1,
-				downloaded = c.downloaded,
-				updated_at = now()
-			FROM cte c
-			WHERE (n.storage_contract, n.provider_pubkey) = (c.storage_contract, c.provider_pubkey)
-			RETURNING n.size, c.downloaded, c.provider_pubkey, c.storage_contract
 		)
+		UPDATE providers.notifications n
+		SET download_checks = download_checks + 1,
+			downloaded = c.downloaded,
+			updated_at = now()
+		FROM cte c
+		WHERE (n.storage_contract, n.provider_pubkey) = (c.storage_contract, c.provider_pubkey)
 	`
 	_, err := r.db.Exec(ctx, query, notifications)
 	return err

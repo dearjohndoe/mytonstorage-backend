@@ -26,6 +26,7 @@ func (w *worker) Start(ctx context.Context) (err error) {
 
 	go w.run(ctx, "MarkToRemoveUnpaidFiles", w.files.MarkToRemoveUnpaidFiles)
 	go w.run(ctx, "RemoveUnpaidFiles", w.files.RemoveUnpaidFiles)
+	go w.run(ctx, "RemoveNotifiedFiles", w.files.RemoveNotifiedFiles)
 
 	go w.run(ctx, "CollectContractProvidersToNotify", w.files.CollectContractProvidersToNotify)
 	go w.run(ctx, "TriggerProvidersDownload", w.files.TriggerProvidersDownload)

@@ -164,12 +164,20 @@ func run() (err error) {
 		providerClient,
 		tonContractsClient,
 		config.System.UnpaidFilesLifetime,
+		config.System.PaidFilesLifetime,
 		logger,
 	)
 	filesWorker = filesworker.NewMetrics(workersRunCount, workersRunDuration, filesWorker)
 
 	// Services
-	providersSvc := providersService.NewService(providerClient, filesRepo, storage, config.System.MaxAllowedSpanDays, config.System.UnpaidFilesLifetime, logger)
+	providersSvc := providersService.NewService(
+		providerClient,
+		filesRepo,
+		storage,
+		config.System.MaxAllowedSpanDays,
+		config.System.UnpaidFilesLifetime,
+		logger,
+	)
 
 	contractsSvc := contractsService.NewService(logger)
 
