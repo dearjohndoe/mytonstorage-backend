@@ -24,14 +24,21 @@ const (
 )
 
 type service struct {
-	files               filesDb
-	tonstorage          storage
-	storageDir          string
-	unpaidFilesLifetime time.Duration
-	logger              *slog.Logger
+	files                   filesDb
+	system                  systemDb
+	tonstorage              storage
+	storageDir              string
+	totalDiskSpaceAvailable uint64
+	unpaidFilesLifetime     time.Duration
+	logger                  *slog.Logger
+}
+
+type systemDb interface {
+	GetParam(ctx context.Context, key string) (value string, err error)
 }
 
 type storage interface {
+	List(ctx context.Context) (*tonstorage.ListShort, error)
 	Create(ctx context.Context, description, path string) (string, error)
 	GetBag(ctx context.Context, bagId string) (*tonstorage.BagDetailed, error)
 	RemoveBag(ctx context.Context, bagId string, withFiles bool) error
@@ -63,6 +70,7 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		slog.Int("file_count", len(files)),
 	)
 
+	// Check paids
 	unpaid, err := s.files.GetUnpaidBags(ctx, userAddr)
 	if err != nil {
 		log.Error("Failed to get unpaid bags", slog.Any("error", err))
@@ -75,6 +83,24 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		return
 	}
 
+	// Validate
+	maxSize, maxCount, err := s.getLimits(ctx)
+	if err != nil {
+		log.Error("Failed to get limits", slog.Any("error", err))
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
+	}
+
+	err = s.validate(description, files, maxSize, maxCount)
+	if err != nil {
+		log.Error("Validation error", slog.Any("error", err))
+		err = models.NewAppError(models.BadRequestErrorCode, err.Error())
+		return
+	}
+
+	err = s.validateAvailableSpace(ctx, s.totalDiskSpaceAvailable)
+
+	// Make dir
 	id, uErr := uuid.NewV6()
 	if uErr != nil {
 		log.Error("Failed to generate UUID", slog.Any("error", uErr))
@@ -167,6 +193,7 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		return
 	}
 
+	// Get info
 	bagInfo, err := s.tonstorage.GetBag(ctx, bagid)
 	if err != nil {
 		log.Error("Failed to get bag info", "error", err.Error())
@@ -299,16 +326,20 @@ func (s *service) GetBagsInfoShort(ctx context.Context, contracts []string) (inf
 
 func NewService(
 	files filesDb,
+	system systemDb,
 	storage storage,
 	storageDir string,
+	totalDiskSpaceAvailable uint64,
 	unpaidFilesLifetime time.Duration,
 	logger *slog.Logger,
 ) Files {
 	return &service{
-		files:               files,
-		tonstorage:          storage,
-		storageDir:          storageDir,
-		unpaidFilesLifetime: unpaidFilesLifetime,
-		logger:              logger,
+		files:                   files,
+		system:                  system,
+		tonstorage:              storage,
+		storageDir:              storageDir,
+		totalDiskSpaceAvailable: totalDiskSpaceAvailable,
+		unpaidFilesLifetime:     unpaidFilesLifetime,
+		logger:                  logger,
 	}
 }

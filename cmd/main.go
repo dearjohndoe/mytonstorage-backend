@@ -23,6 +23,7 @@ import (
 	"mytonstorage-backend/pkg/httpServer"
 	filesRepository "mytonstorage-backend/pkg/repositories/files"
 	providersRepository "mytonstorage-backend/pkg/repositories/providers"
+	systemRepository "mytonstorage-backend/pkg/repositories/system"
 	"mytonstorage-backend/pkg/services/auth"
 	contractsService "mytonstorage-backend/pkg/services/contracts"
 	filesService "mytonstorage-backend/pkg/services/files"
@@ -131,6 +132,9 @@ func run() (err error) {
 	filesRepo := filesRepository.NewRepository(connPool)
 	filesRepo = filesRepository.NewMetrics(dbRequestsCount, dbRequestsDuration, filesRepo)
 
+	systemRepo := systemRepository.NewRepository(connPool)
+	systemRepo = systemRepository.NewMetrics(dbRequestsCount, dbRequestsDuration, systemRepo)
+
 	providerRepo := providersRepository.NewRepository(connPool)
 	providerRepo = providersRepository.NewMetrics(dbRequestsCount, dbRequestsDuration, providerRepo)
 
@@ -163,7 +167,7 @@ func run() (err error) {
 		storage,
 		providerClient,
 		tonContractsClient,
-		config.System.UnpaidFilesLifetime,
+		config.System.UnpaidFilesLifetimePrivate,
 		config.System.PaidFilesLifetime,
 		logger,
 	)
@@ -175,7 +179,7 @@ func run() (err error) {
 		filesRepo,
 		storage,
 		config.System.MaxAllowedSpanDays,
-		config.System.UnpaidFilesLifetime,
+		config.System.UnpaidFilesLifetimePrivate,
 		logger,
 	)
 
@@ -183,8 +187,9 @@ func run() (err error) {
 
 	filesSvc := filesService.NewService(
 		filesRepo,
-		storage,
+		systemRepo,
 		config.TONStorage.BagsDirForStorage,
+		config.System.TotalDiskSpaceAvailable,
 		config.System.UnpaidFilesLifetimePublic,
 		logger,
 	)

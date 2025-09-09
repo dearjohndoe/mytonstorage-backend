@@ -18,6 +18,7 @@ import (
 type Client interface {
 	Create(ctx context.Context, description, path string) (string, error)
 	GetBag(ctx context.Context, bagId string) (*BagDetailed, error)
+	List(ctx context.Context) (*ListShort, error)
 	StartDownload(ctx context.Context, bagId string, downloadAll bool) error
 	RemoveBag(ctx context.Context, bagId string, withFiles bool) error
 }
@@ -73,6 +74,19 @@ func (c *client) GetBag(ctx context.Context, bagId string) (*BagDetailed, error)
 	if res.InfoLoaded && res.MerkleHash == "" {
 		return nil, fmt.Errorf("too old tonutils-storage version, please update")
 	}
+	return &res, nil
+}
+
+func (c *client) List(ctx context.Context) (*ListShort, error) {
+	var res ListShort
+	if err := c.doRequest(ctx, "GET", "/api/v1/list", nil, &res); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, ErrNotFound
+		}
+
+		return nil, fmt.Errorf("failed to do request: %w", err)
+	}
+
 	return &res, nil
 }
 

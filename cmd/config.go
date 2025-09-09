@@ -17,19 +17,20 @@ var logLevels = map[uint8]slog.Level{
 }
 
 type System struct {
-	Port                      string             `env:"SYSTEM_PORT" envDefault:"9090"`
-	Host                      string             `env:"SYSTEM_HOST" required:"true"`
-	Key                       ed25519.PrivateKey `env:"SYSTEM_KEY" required:"false"`
-	AuthPrivateKey            string             `env:"SYSTEM_PRIVATE_KEY" required:"true"`
-	AuthSessionDuration       time.Duration      `env:"SYSTEM_AUTH_SESSION_DURATION" envDefault:"24h"`
-	ADNLPort                  string             `env:"SYSTEM_ADNL_PORT" envDefault:"16167"`
-	AdminAuthTokens           string             `env:"SYSTEM_ADMIN_AUTH_TOKENS" envDefault:""`
-	LogLevel                  uint8              `env:"SYSTEM_LOG_LEVEL" envDefault:"1"` // 0 - debug, 1 - info, 2 - warn, 3 - error
-	StoreHistoryDays          int                `env:"SYSTEM_STORE_HISTORY_DAYS" envDefault:"90"`
-	UnpaidFilesLifetime       time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME" envDefault:"20m"`
-	PaidFilesLifetime         time.Duration      `env:"SYSTEM_PAID_FILES_LIFETIME" envDefault:"48h"`
-	UnpaidFilesLifetimePublic time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME_PUBLIC" envDefault:"15m"`
-	MaxAllowedSpanDays        uint32             `env:"SYSTEM_MAX_ALLOWED_SPAN_DAYS" envDefault:"7"`
+	Port                       string             `env:"SYSTEM_PORT" envDefault:"9090"`
+	Host                       string             `env:"SYSTEM_HOST" required:"true"`
+	Key                        ed25519.PrivateKey `env:"SYSTEM_KEY" required:"false"`
+	AuthPrivateKey             string             `env:"SYSTEM_PRIVATE_KEY" required:"true"`
+	AuthSessionDuration        time.Duration      `env:"SYSTEM_AUTH_SESSION_DURATION" envDefault:"24h"`
+	ADNLPort                   string             `env:"SYSTEM_ADNL_PORT" envDefault:"16167"`
+	AdminAuthTokens            string             `env:"SYSTEM_ADMIN_AUTH_TOKENS" envDefault:""`
+	LogLevel                   uint8              `env:"SYSTEM_LOG_LEVEL" envDefault:"1"` // 0 - debug, 1 - info, 2 - warn, 3 - error
+	StoreHistoryDays           int                `env:"SYSTEM_STORE_HISTORY_DAYS" envDefault:"90"`
+	UnpaidFilesLifetimePrivate time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME" envDefault:"20m"`
+	PaidFilesLifetime          time.Duration      `env:"SYSTEM_PAID_FILES_LIFETIME" envDefault:"48h"`
+	UnpaidFilesLifetimePublic  time.Duration      `env:"SYSTEM_UNPAID_FILES_LIFETIME_PUBLIC" envDefault:"15m"`
+	TotalDiskSpaceAvailable    uint64             `env:"SYSTEM_TOTAL_DISK_SPACE_AVAILABLE" envDefault:"644245094400"` // 600 GB
+	MaxAllowedSpanDays         uint32             `env:"SYSTEM_MAX_ALLOWED_SPAN_DAYS" envDefault:"7"`
 }
 
 type Metrics struct {

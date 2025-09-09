@@ -27,6 +27,14 @@ type Peer struct {
 	DownloadSpeed uint64 `json:"download_speed"`
 }
 
+type ListShort struct {
+	Bags []BagShort `json:"bags"`
+}
+
+type BagShort struct {
+	Size uint64 `json:"size"`
+}
+
 type BagDetailed struct {
 	Bag
 	BagPiecesNum  uint32 `json:"bag_pieces_num"`
