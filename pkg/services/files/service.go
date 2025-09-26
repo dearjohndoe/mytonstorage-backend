@@ -48,6 +48,7 @@ type filesDb interface {
 	AddBag(ctx context.Context, bag db.BagInfo, userAddr string) error
 	RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (int64, error)
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
+	CanUpload(ctx context.Context, userID string, sec uint64) (bool, error)
 	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
 	GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) ([]db.BagStorageContract, error)
 	IncreaseAttempts(ctx context.Context, bags []db.BagStorageContract) error
@@ -71,14 +72,14 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 	)
 
 	// Check paids
-	unpaid, err := s.files.GetUnpaidBags(ctx, userAddr)
+	canUpload, err := s.files.CanUpload(ctx, userAddr, uint64(s.unpaidFilesLifetime.Seconds()))
 	if err != nil {
 		log.Error("Failed to get unpaid bags", slog.Any("error", err))
 		err = models.NewAppError(models.InternalServerErrorCode, "")
 		return
 	}
 
-	if len(unpaid) > 0 {
+	if !canUpload {
 		err = models.NewAppError(models.BadRequestErrorCode, "you have unpaid bags")
 		return
 	}
@@ -99,6 +100,11 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 	}
 
 	err = s.validateAvailableSpace(ctx, s.totalDiskSpaceAvailable)
+	if err != nil {
+		log.Error("Not enough disk space", slog.Any("error", err))
+		err = models.NewAppError(models.ServiceUnavailableCode, "")
+		return
+	}
 
 	// Make dir
 	id, uErr := uuid.NewV6()

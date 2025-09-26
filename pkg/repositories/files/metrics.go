@@ -71,6 +71,17 @@ func (m *metricsMiddleware) RemoveNotifiedBags(ctx context.Context, limit int, s
 	return m.repo.RemoveNotifiedBags(ctx, limit, sec, maxNotifyAttempts, maxDownloadChecks)
 }
 
+func (m *metricsMiddleware) CanUpload(ctx context.Context, userID string, sec uint64) (can bool, err error) {
+	defer func(s time.Time) {
+		labels := []string{
+			"CanUpload", strconv.FormatBool(err != nil),
+		}
+		m.reqCount.WithLabelValues(labels...).Add(1)
+		m.reqDuration.WithLabelValues(labels...).Observe(time.Since(s).Seconds())
+	}(time.Now())
+	return m.repo.CanUpload(ctx, userID, sec)
+}
+
 func (m *metricsMiddleware) GetUnpaidBags(ctx context.Context, userID string) (bags []db.UserBagInfo, err error) {
 	defer func(s time.Time) {
 		labels := []string{

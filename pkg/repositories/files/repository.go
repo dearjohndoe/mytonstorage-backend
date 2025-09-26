@@ -19,6 +19,7 @@ type Repository interface {
 	RemoveUnpaidBagsRelations(ctx context.Context, sec uint64) (bagids []string, err error)
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
 	RemoveNotifiedBags(ctx context.Context, limit int, sec uint64, maxNotifyAttempts int, maxDownloadChecks int) (removed []string, err error)
+	CanUpload(ctx context.Context, userID string, sec uint64) (bool, error)
 	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
 	IsBagExpired(ctx context.Context, bagID string, userAddress string, sec uint64) (expired bool, err error)
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (int64, error)
@@ -172,6 +173,26 @@ func (r *repository) RemoveNotifiedBags(ctx context.Context, limit int, sec uint
 	}
 
 	return removed, nil
+}
+
+func (r *repository) CanUpload(ctx context.Context, userID string, sec uint64) (bool, error) {
+	query := `
+		SELECT EXISTS(
+			SELECT 1
+			FROM files.bag_users
+			WHERE user_address = $1 
+				AND storage_contract IS NULL 
+				AND (NOW() - created_at) < $2
+		)
+	`
+
+	var hasUnpaid bool
+	err := r.db.QueryRow(ctx, query, userID, time.Duration(sec)*time.Second).Scan(&hasUnpaid)
+	if err != nil {
+		return false, err
+	}
+
+	return !hasUnpaid, nil
 }
 
 func (r *repository) GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error) {

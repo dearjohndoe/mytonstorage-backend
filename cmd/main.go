@@ -188,6 +188,7 @@ func run() (err error) {
 	filesSvc := filesService.NewService(
 		filesRepo,
 		systemRepo,
+		storage,
 		config.TONStorage.BagsDirForStorage,
 		config.System.TotalDiskSpaceAvailable,
 		config.System.UnpaidFilesLifetimePublic,

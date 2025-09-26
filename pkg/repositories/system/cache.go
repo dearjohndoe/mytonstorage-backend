@@ -36,6 +36,6 @@ func NewCacheMiddleware(
 ) Repository {
 	return &cacheMiddleware{
 		svc:   svc,
-		cache: cache.NewSimpleCache(1 * time.Minute),
+		cache: cache.NewSimpleCache(10 * time.Minute),
 	}
 }
