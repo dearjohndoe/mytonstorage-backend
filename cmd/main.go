@@ -77,7 +77,7 @@ func run() (err error) {
 	dbRequestsCount := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: config.Metrics.Namespace,
-			Subsystem: config.Metrics.DbSubsystem,
+			Subsystem: config.Metrics.BasicSubsystem,
 			Name:      "db_requests_count",
 			Help:      "Db requests count",
 		},
@@ -87,7 +87,7 @@ func run() (err error) {
 	dbRequestsDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: config.Metrics.Namespace,
-			Subsystem: config.Metrics.DbSubsystem,
+			Subsystem: config.Metrics.BasicSubsystem,
 			Name:      "db_requests_duration",
 			Help:      "Db requests duration",
 		},
@@ -97,7 +97,7 @@ func run() (err error) {
 	workersRunCount := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: config.Metrics.Namespace,
-			Subsystem: config.Metrics.DbSubsystem,
+			Subsystem: config.Metrics.BasicSubsystem,
 			Name:      "workers_requests_count",
 			Help:      "Workers requests count",
 		},
@@ -107,7 +107,7 @@ func run() (err error) {
 	workersRunDuration := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: config.Metrics.Namespace,
-			Subsystem: config.Metrics.DbSubsystem,
+			Subsystem: config.Metrics.BasicSubsystem,
 			Name:      "workers_requests_duration",
 			Help:      "Workers requests duration",
 		},

@@ -34,10 +34,9 @@ type System struct {
 }
 
 type Metrics struct {
-	Namespace        string `env:"NAMESPACE" default:"ton-storage"`
-	ServerSubsystem  string `env:"SERVER_SUBSYSTEM" default:"mtpo-server"`
-	WorkersSubsystem string `env:"WORKERS_SUBSYSTEM" default:"mtpo-workers"`
-	DbSubsystem      string `env:"DB_SUBSYSTEM" default:"mtpo-db"`
+	Namespace       string `env:"NAMESPACE" default:"ton-storage"`
+	ServerSubsystem string `env:"SERVER_SUBSYSTEM" default:"mtpo-server"`
+	BasicSubsystem  string `env:"BASIC_SUBSYSTEM" default:"mtpo-db"`
 }
 
 type TONStorage struct {

@@ -135,8 +135,8 @@ func (r *repository) RemoveNotifiedBags(ctx context.Context, limit int, sec uint
 				n.bagid, 
 				( 
 					(
-						(NOT n.notified AND n.notify_attempts > $1) -- failed to notify after N attempts
-						OR (n.notified AND n.download_checks > $2) -- failed download check after N attempts
+						(NOT n.notified AND n.notify_attempts >= $1) -- failed to notify after N attempts
+						OR (n.notified AND n.download_checks >= $2) -- failed download check after N attempts
 						OR (n.size = n.downloaded) -- fully downloaded
 					)
 					AND EXTRACT(EPOCH FROM (NOW() - n.updated_at)) > $3
@@ -149,7 +149,7 @@ func (r *repository) RemoveNotifiedBags(ctx context.Context, limit int, sec uint
 				SELECT bagid 
 				FROM cte 
 				GROUP BY bagid 
-				HAVING MIN(can_delete::int) = 1  -- all can_delete must be true
+				HAVING MIN(can_delete::int) = 1  -- for one bag all can_delete must be true
 			)
 			LIMIT $4
 		)
