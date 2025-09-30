@@ -26,11 +26,33 @@ func (w *worker) Start(ctx context.Context) (err error) {
 
 	go w.run(ctx, "MarkToRemoveUnpaidFiles", w.files.MarkToRemoveUnpaidFiles)
 	go w.run(ctx, "RemoveUnpaidFiles", w.files.RemoveUnpaidFiles)
-	go w.run(ctx, "RemoveNotifiedFiles", w.files.RemoveNotifiedFiles)
 
+	/*
+		Note: Первым отрабатывает CollectContractProvidersToNotify. Он дергает гет методы новых контрактов что бы получить список провайдеров
+		Если удалось получить список провайдеров, то выставляет files.bag_users.notify_attempts = -1 и добавляет запись в providers.notifications
+		Если возникла ошибка инкрементит счетчик попыток и возвращается в других итерациях
+
+		Далее TriggerProvidersDownload собирает записи из providers.notifications
+		В случае ошибки та же логика с попытками инкремента ошибок
+		Если провайдер ответил что начал скачивание, то выставляет providers.notifications.notified = true
+
+		Третьим идет DownloadChecker, который проверяет статус скачивания у провайдеров
+		Используется тот же метод для проверки статуса что и в TriggerProvidersDownload
+		В случае успеха обновляет количество скачанных байт в providers.notifications.downloaded = c.downloaded
+
+		RemoveNotifiedFiles удаляет файлы
+		Старше paidFilesLifetime часов
+		И
+		(
+		Либо файлы провалившие TriggerProvidersDownload более N раз
+		Либо файлы провалившие DownloadChecker более N раз
+		Либо файлы которые полностью скачаны (downloaded = size)
+		)
+	*/
 	go w.run(ctx, "CollectContractProvidersToNotify", w.files.CollectContractProvidersToNotify)
 	go w.run(ctx, "TriggerProvidersDownload", w.files.TriggerProvidersDownload)
 	go w.run(ctx, "DownloadChecker", w.files.DownloadChecker)
+	go w.run(ctx, "RemoveNotifiedFiles", w.files.RemoveNotifiedFiles)
 
 	return nil
 }

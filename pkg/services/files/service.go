@@ -24,14 +24,21 @@ const (
 )
 
 type service struct {
-	files               filesDb
-	tonstorage          storage
-	storageDir          string
-	unpaidFilesLifetime time.Duration
-	logger              *slog.Logger
+	files                   filesDb
+	system                  systemDb
+	tonstorage              storage
+	storageDir              string
+	totalDiskSpaceAvailable uint64
+	unpaidFilesLifetime     time.Duration
+	logger                  *slog.Logger
+}
+
+type systemDb interface {
+	GetParam(ctx context.Context, key string) (value string, err error)
 }
 
 type storage interface {
+	List(ctx context.Context) (*tonstorage.ListShort, error)
 	Create(ctx context.Context, description, path string) (string, error)
 	GetBag(ctx context.Context, bagId string) (*tonstorage.BagDetailed, error)
 	RemoveBag(ctx context.Context, bagId string, withFiles bool) error
@@ -41,6 +48,7 @@ type filesDb interface {
 	AddBag(ctx context.Context, bag db.BagInfo, userAddr string) error
 	RemoveUserBagRelation(ctx context.Context, bagID, userAddress string) (int64, error)
 	RemoveUnusedBags(ctx context.Context) (removed []string, err error)
+	CanUpload(ctx context.Context, userID string, sec uint64) (bool, error)
 	GetUnpaidBags(ctx context.Context, userID string) ([]db.UserBagInfo, error)
 	GetNotifyInfo(ctx context.Context, limit int, notifyAttempts int) ([]db.BagStorageContract, error)
 	IncreaseAttempts(ctx context.Context, bags []db.BagStorageContract) error
@@ -63,18 +71,42 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		slog.Int("file_count", len(files)),
 	)
 
-	unpaid, err := s.files.GetUnpaidBags(ctx, userAddr)
+	// Check paids
+	canUpload, err := s.files.CanUpload(ctx, userAddr, uint64(s.unpaidFilesLifetime.Seconds()))
 	if err != nil {
 		log.Error("Failed to get unpaid bags", slog.Any("error", err))
 		err = models.NewAppError(models.InternalServerErrorCode, "")
 		return
 	}
 
-	if len(unpaid) > 0 {
+	if !canUpload {
 		err = models.NewAppError(models.BadRequestErrorCode, "you have unpaid bags")
 		return
 	}
 
+	// Validate
+	maxSize, maxCount, err := s.getLimits(ctx)
+	if err != nil {
+		log.Error("Failed to get limits", slog.Any("error", err))
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
+	}
+
+	err = s.validate(description, files, maxSize, maxCount)
+	if err != nil {
+		log.Error("Validation error", slog.Any("error", err))
+		err = models.NewAppError(models.BadRequestErrorCode, err.Error())
+		return
+	}
+
+	err = s.validateAvailableSpace(ctx, s.totalDiskSpaceAvailable)
+	if err != nil {
+		log.Error("Not enough disk space", slog.Any("error", err))
+		err = models.NewAppError(models.ServiceUnavailableCode, "")
+		return
+	}
+
+	// Make dir
 	id, uErr := uuid.NewV6()
 	if uErr != nil {
 		log.Error("Failed to generate UUID", slog.Any("error", uErr))
@@ -167,6 +199,7 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		return
 	}
 
+	// Get info
 	bagInfo, err := s.tonstorage.GetBag(ctx, bagid)
 	if err != nil {
 		log.Error("Failed to get bag info", "error", err.Error())
@@ -299,16 +332,20 @@ func (s *service) GetBagsInfoShort(ctx context.Context, contracts []string) (inf
 
 func NewService(
 	files filesDb,
+	system systemDb,
 	storage storage,
 	storageDir string,
+	totalDiskSpaceAvailable uint64,
 	unpaidFilesLifetime time.Duration,
 	logger *slog.Logger,
 ) Files {
 	return &service{
-		files:               files,
-		tonstorage:          storage,
-		storageDir:          storageDir,
-		unpaidFilesLifetime: unpaidFilesLifetime,
-		logger:              logger,
+		files:                   files,
+		system:                  system,
+		tonstorage:              storage,
+		storageDir:              storageDir,
+		totalDiskSpaceAvailable: totalDiskSpaceAvailable,
+		unpaidFilesLifetime:     unpaidFilesLifetime,
+		logger:                  logger,
 	}
 }
