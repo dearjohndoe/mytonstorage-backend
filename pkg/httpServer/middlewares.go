@@ -57,13 +57,16 @@ func (h *handler) loggerMiddleware(c *fiber.Ctx) error {
 		headers["Cookie"] = []string{"REDACTED"}
 	}
 
+	res := c.Next()
+
 	h.logger.Debug(
-		"request received",
+		"request",
+		"status_code", c.Response().StatusCode(),
 		"method", c.Method(),
 		"url", c.OriginalURL(),
 		"headers", headers,
 		"body_length", len(c.Body()),
 	)
 
-	return c.Next()
+	return res
 }

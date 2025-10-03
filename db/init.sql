@@ -20,11 +20,7 @@ CREATE TABLE IF NOT EXISTS system.params
     CONSTRAINT params_pkey PRIMARY KEY (key)
 );
 
--- 4 GB
-INSERT INTO system.params (key, value) VALUES ('max_files_size', (4::bigint << 30)::text)
-ON CONFLICT (key) DO NOTHING;
-
-INSERT INTO system.params (key, value) VALUES ('max_files_count', (10000)::text)
+INSERT INTO system.params (key, value) VALUES ('max_files_count', (5000)::text)
 ON CONFLICT (key) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS providers.notifications

@@ -222,7 +222,23 @@ func run() (err error) {
 
 	// HTTP Server
 	adminAuthTokens := strings.Split(config.System.AdminAuthTokens, ",")
-	app := fiber.New(fiber.Config{BodyLimit: 4 * 1024 * 1024 * 1024})
+	app := fiber.New(fiber.Config{
+		AppName:      "mytonstorage-backend",
+		ReadTimeout:  10 * time.Minute,
+		WriteTimeout: 10 * time.Minute,
+		BodyLimit:    4 << 30, // 4 GiB
+
+		/*
+			DisablePreParseMultipartForm выключает парсинг multipart form на уровне valyala/fasthttp,
+			т.к. упираемся в захардкоженный лимит в defaultMaxInMemoryFileSize == 16MB
+			Из-за этого у нас возникает ситуация когда мы можем загрузить один или несколько
+			больших файлов размером BodyLimit(параметр выше), но не можем загрузить много маленьких файлов
+			каждый из которых не привышает лимит в defaultMaxInMemoryFileSize, но общий объем превышает.
+
+			Пишут что может сильно увеличить использование памяти на сервере, нужно последить.
+		*/
+		DisablePreParseMultipartForm: true,
+	})
 	server := httpServer.New(
 		app,
 		filesSvc,

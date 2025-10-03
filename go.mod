@@ -55,7 +55,8 @@ require (
 	github.com/xssnick/tonutils-go v1.14.1-0.20250724113246-0e768032bcd2
 	github.com/xssnick/tonutils-storage v1.1.5
 	golang.org/x/crypto v0.40.0 // indirect
-	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/exp v0.0.0-20250911091902-df9299821621
+	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect

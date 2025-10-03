@@ -14,8 +14,8 @@ type cacheMiddleware struct {
 	cache *cache.SimpleCache
 }
 
-func (c *cacheMiddleware) AddFiles(ctx context.Context, description string, file []*multipart.FileHeader, userAddr string) (bagid string, err error) {
-	return c.svc.AddFiles(ctx, description, file, userAddr)
+func (c *cacheMiddleware) AddFiles(ctx context.Context, mr *multipart.Reader, size uint64, userAddr string) (bagid string, err error) {
+	return c.svc.AddFiles(ctx, mr, size, userAddr)
 }
 
 func (c *cacheMiddleware) DeleteBag(ctx context.Context, bagID string, userAddr string) (err error) {
