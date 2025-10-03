@@ -1,17 +1,22 @@
 package files
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"mime/multipart"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/xssnick/tonutils-go/address"
+	"golang.org/x/exp/utf8string"
 
 	tonstorage "mytonstorage-backend/pkg/clients/ton-storage"
 	"mytonstorage-backend/pkg/models"
@@ -57,18 +62,18 @@ type filesDb interface {
 }
 
 type Files interface {
-	AddFiles(ctx context.Context, description string, file []*multipart.FileHeader, userAddr string) (bagid string, err error)
+	AddFiles(ctx context.Context, mr *multipart.Reader, size uint64, userAddr string) (bagid string, err error)
 	DeleteBag(ctx context.Context, bagID string, userAddr string) error
 	MarkBagAsPaid(ctx context.Context, bagID, userAddress, storageContract string) (err error)
 	GetUnpaidBags(ctx context.Context, userAddr string) (info v1.UnpaidBagsResponse, err error)
 	GetBagsInfoShort(ctx context.Context, contracts []string) (info []v1.BagInfoShort, err error)
 }
 
-func (s *service) AddFiles(ctx context.Context, description string, files []*multipart.FileHeader, userAddr string) (bagid string, err error) {
+func (s *service) AddFiles(ctx context.Context, mr *multipart.Reader, size uint64, userAddr string) (bagid string, err error) {
 	log := s.logger.With(
 		slog.String("method", "AddFiles"),
-		slog.String("description", description),
-		slog.Int("file_count", len(files)),
+		slog.Uint64("size", size),
+		slog.String("user_address", userAddr),
 	)
 
 	// Check paids
@@ -84,25 +89,17 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		return
 	}
 
-	// Validate
-	maxSize, maxCount, err := s.getLimits(ctx)
-	if err != nil {
-		log.Error("Failed to get limits", slog.Any("error", err))
-		err = models.NewAppError(models.InternalServerErrorCode, "")
-		return
-	}
-
-	err = s.validate(description, files, maxSize, maxCount)
-	if err != nil {
-		log.Error("Validation error", slog.Any("error", err))
-		err = models.NewAppError(models.BadRequestErrorCode, err.Error())
-		return
-	}
-
-	err = s.validateAvailableSpace(ctx, s.totalDiskSpaceAvailable)
+	err = s.validateAvailableSpace(ctx, size)
 	if err != nil {
 		log.Error("Not enough disk space", slog.Any("error", err))
 		err = models.NewAppError(models.ServiceUnavailableCode, "")
+		return
+	}
+
+	maxFilesCount, err := s.getLimits(ctx)
+	if err != nil {
+		log.Error("Failed to get limits", slog.Any("error", err))
+		err = models.NewAppError(models.InternalServerErrorCode, "")
 		return
 	}
 
@@ -130,89 +127,108 @@ func (s *service) AddFiles(ctx context.Context, description string, files []*mul
 		}
 	}()
 
-	// Save files to disk
+	// Parse multipart to disk
+	description := ""
 	rootDir := ""
-	for _, f := range files {
-		src, fErr := f.Open()
-		if fErr != nil {
-			log.Error("Failed to open uploaded file", slog.Any("error", fErr))
-			err = models.NewAppError(models.InternalServerErrorCode, "")
-			return
+	lastFileName := ""
+	fileCount := 0
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
 		}
-		defer src.Close()
+		if err != nil {
+			log.Error("failed to read part", slog.Any("error", err))
+			return "", fiber.NewError(fiber.StatusBadRequest, "invalid multipart")
+		}
 
-		fileName := f.Filename
-		cd := f.Header.Get("Content-Disposition")
-		parts := strings.Split(cd, ";")
-		for _, part := range parts {
-			part = strings.TrimSpace(part)
-			if strings.HasPrefix(part, "filename=") {
-				fileName = strings.Trim(part[len("filename="):], "\"")
-				break
+		name := part.FormName()
+		if name == "" {
+			continue
+		}
+
+		if maxFilesCount > 0 && fileCount >= maxFilesCount {
+			msg := fmt.Sprintf("too many files (max %d)", maxFilesCount)
+			log.Error(msg, "error", err, "file_count", fileCount)
+			return "", fiber.NewError(fiber.StatusBadRequest, msg)
+		}
+
+		lastFileName = part.Header.Get("Content-Disposition")
+		_, params, _ := mime.ParseMediaType(lastFileName)
+		lastFileName = params["filename"]
+
+		// Sanitize the filename
+		lastFileName, err = sanitizePath(lastFileName)
+		if err != nil {
+			log.Error("Failed to sanitize filename", "error", err, "filename", lastFileName)
+			return "", fiber.NewError(fiber.StatusBadRequest, "invalid filename")
+		}
+
+		// Write file to disk
+		if lastFileName != "." {
+			fileCount++
+
+			fileData, err := io.ReadAll(part)
+			if err != nil {
+				msg := fmt.Sprintf("failed to read file %s part", lastFileName)
+				log.Error(msg, "error", err, "filename", lastFileName)
+				return "", fiber.NewError(fiber.StatusBadRequest, msg)
 			}
-		}
 
-		if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") {
-			if rootDir == "" {
-				rootDir = filepath.Dir(fileName)
-				if i := strings.Index(rootDir, "/"); i != -1 {
-					rootDir = rootDir[:i]
+			if strings.Contains(lastFileName, "/") || strings.Contains(lastFileName, "\\") {
+				if rootDir == "" {
+					rootDir = filepath.Dir(lastFileName)
+					if i := strings.Index(rootDir, "/"); i != -1 {
+						rootDir = rootDir[:i]
+					}
 				}
 			}
 
-			subDir := filepath.Join(dstPath, filepath.Dir(fileName))
-			if err := os.MkdirAll(subDir, 0755); err != nil {
-				log.Error("Failed to create subdirectory", slog.Any("error", err))
-				return "", models.NewAppError(models.InternalServerErrorCode, "")
+			err = saveFileToDisk(dstPath, lastFileName, fileData)
+			if err != nil {
+				log.Error("failed to save file to disk", "error", err, "filename", lastFileName)
+				return "", fiber.NewError(fiber.StatusInternalServerError, "internal error")
+			}
+		} else if name == "description" && description == "" {
+			buf := new(bytes.Buffer)
+			_, err := io.CopyN(buf, part, 10<<20)
+			if err != nil && err != io.EOF {
+				return "", fiber.NewError(fiber.StatusBadRequest, "description too large")
+			}
+
+			description = buf.String()
+			a := utf8string.NewString(description)
+			if a.RuneCount() > 100 {
+				description = a.Slice(0, 100)
 			}
 		}
-
-		dst, cErr := os.Create(filepath.Join(dstPath, fileName))
-		if cErr != nil {
-			log.Error("Failed to create file on disk", slog.Any("error", cErr))
-			err = models.NewAppError(models.InternalServerErrorCode, "")
-			return
-		}
-		defer dst.Close()
-
-		_, cErr = io.Copy(dst, src)
-		if cErr != nil {
-			log.Error("Failed to copy file to disk", slog.Any("error", cErr))
-			err = models.NewAppError(models.InternalServerErrorCode, "")
-			return
-		}
 	}
 
-	// Save file(s) to TON Storage
+	if fileCount == 0 {
+		msg := "no files found"
+		log.Error(msg, "error", err)
+		return "", fiber.NewError(fiber.StatusBadRequest, msg)
+	}
+
 	path := filepath.Join(dstPath, rootDir)
-	if len(files) == 1 && rootDir == "" {
-		path = filepath.Join(path, files[0].Filename)
-	}
-	if path == "" {
-		path = dstPath
+	if fileCount == 1 && rootDir == "" {
+		path = filepath.Join(path, lastFileName)
 	}
 
-	bagid, err = s.tonstorage.Create(ctx, description, path)
+	// Save to TON Storage
+	info, err := s.saveToTONStorage(ctx, path, description, log)
 	if err != nil {
-		log.Error("Failed to create file in storage", slog.Any("error", err))
-		err = models.NewAppError(models.InternalServerErrorCode, "")
-		return
+		return "", err
 	}
 
-	// Get info
-	bagInfo, err := s.tonstorage.GetBag(ctx, bagid)
-	if err != nil {
-		log.Error("Failed to get bag info", "error", err.Error())
-		err = models.NewAppError(models.InternalServerErrorCode, "")
-		return
-	}
+	bagid = info.BagID
 
 	// Save bag info to database
 	err = s.files.AddBag(ctx, db.BagInfo{
 		BagID:       bagid,
 		Description: description,
-		Size:        bagInfo.BagSize,
-		FilesSize:   bagInfo.Size,
+		Size:        info.BagSize,
+		FilesSize:   info.Size,
 	}, userAddr)
 	if err != nil {
 		log.Error("Failed to save bag info to database", "error", err.Error())
@@ -328,6 +344,26 @@ func (s *service) GetBagsInfoShort(ctx context.Context, contracts []string) (inf
 	}
 
 	return info, nil
+}
+
+func (s *service) saveToTONStorage(ctx context.Context, path, description string, log *slog.Logger) (info *tonstorage.BagDetailed, err error) {
+	// Save file(s) to TON Storage
+	bagid, err := s.tonstorage.Create(ctx, description, path)
+	if err != nil {
+		log.Error("Failed to create file in storage", slog.Any("error", err))
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
+	}
+
+	// Get info
+	info, err = s.tonstorage.GetBag(ctx, bagid)
+	if err != nil {
+		log.Error("Failed to get bag info", "error", err.Error())
+		err = models.NewAppError(models.InternalServerErrorCode, "")
+		return
+	}
+
+	return
 }
 
 func NewService(

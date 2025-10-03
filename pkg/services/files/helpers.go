@@ -3,43 +3,45 @@ package files
 import (
 	"context"
 	"errors"
-	"fmt"
-	"mime/multipart"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
+
+	"mytonstorage-backend/pkg/constants"
 )
 
 const (
-	maxFilesSize  = "max_files_size"
 	maxFilesCount = "max_files_count"
 )
 
-func (s *service) validate(description string, files []*multipart.FileHeader, maxSize uint64, maxCount int) error {
-	if len(files) == 0 {
-		return errors.New("no files provided")
+func sanitizePath(p string) (string, error) {
+	p = strings.TrimSpace(p)
+	cleaned := filepath.Clean(p)
+
+	if cleaned == "." {
+		return ".", nil
 	}
 
-	if len(files) > maxCount {
-		s := fmt.Sprintf("too many files, max %d files allowed", maxCount)
-		return errors.New(s)
+	if len(cleaned) > constants.MaxPathLength {
+		return "", errors.New("path too long")
 	}
 
-	if len(description) > 100 {
-		return errors.New("description too long, max 100 characters")
+	segments := strings.Split(cleaned, string(filepath.Separator))
+	for _, seg := range segments {
+		if seg == ".." {
+			return "", errors.New("invalid segment in path")
+		}
 	}
 
-	totalSize := uint64(0)
-	for _, file := range files {
-		totalSize += uint64(file.Size)
+	if strings.ContainsRune(cleaned, '\x00') {
+		return "", errors.New("invalid path")
 	}
 
-	if totalSize > maxSize {
-		return errors.New("total file size too large, max 100MB")
-	}
-
-	return nil
+	return cleaned, nil
 }
 
-func (s *service) validateAvailableSpace(ctx context.Context, availableDiskSpace uint64) error {
+func (s *service) validateAvailableSpace(ctx context.Context, filesSize uint64) error {
 	list, err := s.tonstorage.List(ctx)
 	if err != nil {
 		return err
@@ -50,31 +52,44 @@ func (s *service) validateAvailableSpace(ctx context.Context, availableDiskSpace
 		usedSpace += bag.Size
 	}
 
-	if usedSpace > availableDiskSpace {
+	if usedSpace+filesSize > s.totalDiskSpaceAvailable {
 		return errors.New("not enough disk space available")
 	}
 
 	return nil
 }
 
-func (s *service) getLimits(ctx context.Context) (maxSize uint64, maxCount int, err error) {
-	sizeStr, err := s.system.GetParam(ctx, maxFilesSize)
-	if err != nil {
-		return 0, 0, err
-	}
-	size, err := strconv.ParseUint(sizeStr, 10, 64)
-	if err != nil {
-		return 0, 0, err
-	}
-
+func (s *service) getLimits(ctx context.Context) (maxCount int, err error) {
 	countStr, err := s.system.GetParam(ctx, maxFilesCount)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 	count, err := strconv.ParseInt(countStr, 10, 64)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
-	return size, int(count), nil
+	return int(count), nil
+}
+
+func saveFileToDisk(dstPath, fileName string, file []byte) (err error) {
+	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") {
+		subDir := filepath.Join(dstPath, filepath.Dir(fileName))
+		if err := os.MkdirAll(subDir, 0755); err != nil {
+			return err
+		}
+	}
+
+	dst, cErr := os.Create(filepath.Join(dstPath, fileName))
+	if cErr != nil {
+		return err
+	}
+	defer dst.Close()
+
+	_, err = dst.Write(file)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

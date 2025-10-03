@@ -1,7 +1,10 @@
 package httpServer
 
 import (
+	"bytes"
 	"log/slog"
+	"mime"
+	"mime/multipart"
 	"slices"
 	"strings"
 
@@ -54,27 +57,36 @@ func (h *handler) uploadFiles(c *fiber.Ctx) (err error) {
 	address, ok := c.Context().UserValue("address").(string)
 	if !ok || address == "" {
 		log.Error("no user address after successful auth")
-		return fiber.NewError(fiber.StatusInternalServerError, "")
+		return fiber.NewError(fiber.StatusInternalServerError, "relogin required")
 	}
 
-	mp, err := c.MultipartForm()
-	if err != nil {
-		log.Error("failed to get multipart form", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusBadRequest, "invalid multipart form")
+	body := c.Context().Request.Body()
+	totalSize := len(body)
+	if totalSize == 0 {
+		log.Error("empty request body")
+		return fiber.NewError(fiber.StatusBadRequest, "empty request body")
 	}
 
-	files, ok := mp.File["file"]
-	if !ok || len(files) == 0 {
-		log.Error("failed to get files from form", slog.Any("error", err))
-		return fiber.NewError(fiber.StatusBadRequest, "no files provided")
+	if totalSize > h.server.Config().BodyLimit {
+		log.Error("request body too large", slog.Int("size", totalSize))
+		return fiber.NewError(fiber.StatusRequestEntityTooLarge, "request body too large")
 	}
 
-	var description string
-	if data, ok := mp.Value["description"]; ok {
-		description = data[0]
+	contentType := string(c.Context().Request.Header.ContentType())
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil || !strings.HasPrefix(mediaType, "multipart/") {
+		log.Error("invalid content type", slog.String("content_type", contentType))
+		return fiber.NewError(fiber.StatusBadRequest, "invalid content type")
 	}
 
-	bagid, err := h.files.AddFiles(c.Context(), description, files, address)
+	boundary := params["boundary"]
+	if boundary == "" {
+		log.Error("no boundary in content type")
+		return fiber.NewError(fiber.StatusBadRequest, "no boundary in content type")
+	}
+
+	mr := multipart.NewReader(bytes.NewReader(body), boundary)
+	bagid, err := h.files.AddFiles(c.Context(), mr, uint64(totalSize), address)
 	if err != nil {
 		return errorHandler(c, err)
 	}
