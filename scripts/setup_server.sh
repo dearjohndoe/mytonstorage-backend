@@ -18,11 +18,11 @@ set -e
 
 PG_VERSION="15"
 GITHUB_REPO="dearjohndoe/mytonstorage-backend"
-GITHUB_BRANCH="master"
+GITHUB_BRANCH=${GITHUB_BRANCH:-master}
 SCRIPTS_BASE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/$GITHUB_BRANCH/scripts"
 DB_BASE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/$GITHUB_BRANCH/db"
 WORK_DIR="/tmp/storage"
-API_USER=uClient
+API_USER=${API_USER:-uClient}
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
