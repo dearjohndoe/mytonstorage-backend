@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Script to disable remote access for the 'postgres' user in PostgreSQL
+
 PGUSER_TO_BLOCK="postgres"
 
 PG_HBA_PATH="/etc/postgresql/15/main/pg_hba.conf"

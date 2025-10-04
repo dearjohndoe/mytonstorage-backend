@@ -15,10 +15,9 @@ USER=$(whoami)
 UDP_PORT=47431
 API_PORT=13474
 
+STORAGE_PATH=${STORAGE_PATH:-/opt/ton-storage}
 SRC_DIR="/opt/ton"
 BIN_DIR="/usr/local/bin"
-MCONFIG_DIR="/home/$USER/.local/share/mytonstorage"
-MCONFIG_PATH="$MCONFIG_DIR/mytonstorage.db"
 DB_DIR="$STORAGE_PATH/db"
 STORAGE_CONFIG_PATH="$DB_DIR/config.json"
 REPO_PATH="$SRC_DIR/$REPO_NAME"
@@ -30,10 +29,10 @@ echo "UDP Port: $UDP_PORT"
 echo "API Port: $API_PORT"
 
 echo "Creating directories..."
-sudo mkdir -p "$SRC_DIR"
-sudo mkdir -p "$MCONFIG_DIR"
-sudo mkdir -p "$STORAGE_PATH"
-sudo chown -R "$USER:$USER" "$SRC_DIR" "$MCONFIG_DIR" "$STORAGE_PATH"
+mkdir -p "$SRC_DIR"
+mkdir -p "$STORAGE_PATH"
+mkdir -p "$DB_DIR"
+chown -R "$USER:$USER" "$SRC_DIR" "$STORAGE_PATH" "$DB_DIR"
 
 echo "Cloning repository..."
 cd "$SRC_DIR"
@@ -50,10 +49,10 @@ mkdir -p ../bin
 echo "Compiling..."
 go build -o "../bin/$REPO_NAME" cli/main.go
 
-sudo cp "../bin/$REPO_NAME" "$BIN_DIR/"
+cp "../bin/$REPO_NAME" "$BIN_DIR/"
 
 SYSTEMD_PATH="/etc/systemd/system/$SERVICE_NAME.service"
-sudo bash -c "cat > \"$SYSTEMD_PATH\" << EOF
+bash -c "cat > \"$SYSTEMD_PATH\" << EOF
 [Unit]
 Description=My TON Storage
 After=network.target
@@ -62,7 +61,7 @@ After=network.target
 Type=simple
 User=$USER
 WorkingDirectory=$STORAGE_PATH
-ExecStart=$BIN_DIR/$REPO_NAME --daemon --db $DB_DIR --api $HOST:$API_PORT --api-login $USER --api-password $API_PASSWORD
+ExecStart=$BIN_DIR/$REPO_NAME --daemon --db $DB_DIR --api localhost:$API_PORT --api-login $API_USER --api-password $API_PASSWORD
 Restart=always
 RestartSec=10
 
@@ -93,42 +92,6 @@ else
     echo "Error: config file not found at $STORAGE_CONFIG_PATH"
     exit 1
 fi
-
-echo "Configuring main config..."
-if [ -f "$MCONFIG_PATH" ]; then
-    jq --arg storage_path "$STORAGE_PATH" \
-       --arg src_dir "$SRC_DIR" \
-       --arg config_path "$STORAGE_CONFIG_PATH" \
-       --arg host "$HOST" \
-       --argjson api_port "$API_PORT" \
-       '.ton_storage = {
-         "storage_path": $storage_path,
-         "src_dir": $src_dir,
-         "config_path": $config_path,
-         "api": {
-           "host": $host,
-           "port": $api_port
-         }
-       }' \
-       "$MCONFIG_PATH" > /tmp/mconfig.json && \
-    mv /tmp/mconfig.json "$MCONFIG_PATH"
-else
-    cat > "$MCONFIG_PATH" << EOF
-{
-  "ton_storage": {
-    "storage_path": "$STORAGE_PATH",
-    "src_dir": "$SRC_DIR",
-    "config_path": "$STORAGE_CONFIG_PATH",
-    "api": {
-      "host": "$HOST",
-      "port": $API_PORT
-    }
-  }
-}
-EOF
-fi
-
-chown "$USER:$USER" "$MCONFIG_PATH"
 
 echo "Running..."
 systemctl start "$SERVICE_NAME"

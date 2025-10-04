@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Script to install and configure PostgreSQL
+
 PG_CONF="/etc/postgresql/${PG_VERSION}/main/postgresql.conf"
 PG_HBA="/etc/postgresql/${PG_VERSION}/main/pg_hba.conf"
 

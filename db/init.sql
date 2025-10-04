@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS files.blacklist
 
 CREATE TABLE IF NOT EXISTS files.blacklist_history
 (
-    id integer NOT NULL DEFAULT nextval('files.blacklist_history_id_seq'::regclass),
+    id SERIAL NOT NULL,
     bagid character varying(64) COLLATE pg_catalog."default" NOT NULL,
     admin character varying(64) COLLATE pg_catalog."default" NOT NULL,
     reason text COLLATE pg_catalog."default" NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS files.blacklist_history
 
 CREATE TABLE IF NOT EXISTS files.reports
 (
-    id integer NOT NULL DEFAULT nextval('files.reports_id_seq'::regclass),
+    id SERIAL NOT NULL,
     bagid character varying(64) COLLATE pg_catalog."default" NOT NULL,
     sender text COLLATE pg_catalog."default" NOT NULL,
     reason text COLLATE pg_catalog."default" NOT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS files.reports
 
 CREATE TABLE IF NOT EXISTS files.reports_archive
 (
-    id integer NOT NULL DEFAULT nextval('files.reports_archive_id_seq'::regclass),
+    id SERIAL NOT NULL,
     bagid character varying(64) COLLATE pg_catalog."default" NOT NULL,
     admin text COLLATE pg_catalog."default" NOT NULL,
     sender text COLLATE pg_catalog."default" NOT NULL,
@@ -234,6 +234,3 @@ CREATE OR REPLACE TRIGGER notifications_history_trigger
     ON providers.notifications
     FOR EACH ROW
     EXECUTE FUNCTION providers.notifications_history_insert();
-
-
-
