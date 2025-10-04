@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script initializes the database with tables, schemas, functions and triggers from db/init.sql
+# This script initializes the database with tables, schemas, functions and triggers from db/init.sql.
 
 set -e
 

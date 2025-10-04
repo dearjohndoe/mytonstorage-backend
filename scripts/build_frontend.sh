@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# This script builds the frontend application for the mytonstorage.
+# It clones or updates the repository, installs dependencies, builds the project,
+# and deploys the built files to the appropriate web directory.
+
 set -e
 
 REPO_DIR="mytonstorage-org"
