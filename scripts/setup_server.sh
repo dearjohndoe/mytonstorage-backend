@@ -19,8 +19,6 @@ set -e
 PG_VERSION="15"
 GITHUB_REPO="dearjohndoe/mytonstorage-backend"
 GITHUB_BRANCH=${GITHUB_BRANCH:-master}
-SCRIPTS_BASE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/$GITHUB_BRANCH/scripts"
-DB_BASE_URL="https://raw.githubusercontent.com/$GITHUB_REPO/$GITHUB_BRANCH/db"
 WORK_DIR="/tmp/storage"
 API_USER=${API_USER:-uClient}
 
@@ -93,7 +91,9 @@ setup_work_directory() {
         git pull origin master
     else
         echo "Cloning repository..."
-        git clone https://github.com/dearjohndoe/mytonstorage-backend
+        git clone https://github.com/$GITHUB_REPO.git
+        cd mytonstorage-backend || exit 1
+        git checkout $GITHUB_BRANCH
     fi
     
     print_success "Work directory set up successfully."

@@ -38,6 +38,10 @@ if [ ! -f ~/.ssh/id_rsa.pub ]; then
   ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -N ""
 fi
 
+apt-get update
+apt-get upgrade -y
+apt-get install -y sshpass
+
 PUBLIC_KEY=$(cat ~/.ssh/id_rsa.pub)
 
 sshpass -p "$ESCAPED_PASSWORD" ssh -o StrictHostKeyChecking=no -tt "$USERNAME"@"$HOST" << EOF

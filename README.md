@@ -47,7 +47,7 @@ wget https://raw.githubusercontent.com/dearjohndoe/mytonstorage-backend/refs/hea
 This will take a few minutes.
 
 ```bash
-PG_USER=pguser PG_PASSWORD=secret PG_DB=storagedb NEWFRONTENDUSER=jdfront NEWSUDOUSER=johndoe NEWUSER_PASSWORD=newsecurepassword bash ./setup_server.sh
+PG_USER=pguser PG_PASSWORD=pgpassword PG_DB=storagedb NEWFRONTENDUSER=janefrontsied  NEWSUDOUSER=janedoe NEWUSER_PASSWORD=newpassword  INSTALL_SSL=false APP_USER=appuser API_PASSWORD=apipassword bash setup_server.sh
 ```
 
 Upon completion, it will output useful information about server usage.
