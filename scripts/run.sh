@@ -2,7 +2,7 @@
 
 cd /opt/storage
 
-env $(cat config.env | xargs) ./mtpo-backend >> /var/log/mytonstorage.app/mytonstorage.app.log 2>&1 &
+env $(cat config.env | xargs) ./mtpo-backend >> /var/log/mytonstorage_backend.app/mytonstorage_backend.app.log 2>&1 &
 
 sleep 5
 
