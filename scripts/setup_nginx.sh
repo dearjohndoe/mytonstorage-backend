@@ -28,10 +28,10 @@ apt-get install -y nginx
 echo "Creating Nginx configuration..."
 mkdir -p "$WEB_ROOT"
 
-cat > "$NGINX_CONFIG" << EOF
+cat > "$NGINX_CONFIG" << 'EOF'
 server {
-	server_name $SERVER_NAME;
-	root $WEB_ROOT;
+	server_name mytonstorage.org;
+	root /var/www/mytonstorage.org;
 	index index.html;
 
     # Security headers
@@ -39,19 +39,15 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # File upload settings - allow large files
     client_max_body_size 100M;
+    #proxy_max_temp_file_size 0;
+    #proxy_buffering off;
     client_body_buffer_size 1M;
-    client_body_timeout 300s;
-    client_header_timeout 300s;
-
-    listen 80;
-    listen [::]:80;
 
     # Gateway API proxy configuration
     location /api/v1/gateway/ {
         # Handle CORS preflight requests
-        if (\$request_method = OPTIONS) {
+        if ($request_method = OPTIONS) {
             add_header 'Access-Control-Allow-Origin' '*' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
@@ -63,16 +59,80 @@ server {
 
         # Proxy to gateway service
         proxy_pass http://localhost:9093;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         
-        # Timeouts - increased for large file uploads
+        # Timeouts
         proxy_connect_timeout 30s;
-        proxy_send_timeout 300s;
-        proxy_read_timeout 300s;
-        send_timeout 300s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        send_timeout 30s;
+
+        # CORS headers for actual requests
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+    }
+
+    # Gateway API proxy configuration
+    location /api/v1/bans {
+        # Handle CORS preflight requests
+        if ($request_method = OPTIONS) {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Length' 0;
+            add_header 'Content-Type' 'text/plain; charset=UTF-8';
+            return 204;
+        }
+
+        # Proxy to gateway service
+        proxy_pass http://localhost:9093;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        send_timeout 30s;
+
+        # CORS headers for actual requests
+        add_header 'Access-Control-Allow-Origin' '*' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+    }
+
+    # Gateway API proxy configuration
+    location /api/v1/reports {
+        # Handle CORS preflight requests
+        if ($request_method = OPTIONS) {
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Access-Control-Max-Age' 1728000;
+            add_header 'Content-Length' 0;
+            add_header 'Content-Type' 'text/plain; charset=UTF-8';
+            return 204;
+        }
+
+        # Proxy to gateway service
+        proxy_pass http://localhost:9093;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+        send_timeout 30s;
 
         # CORS headers for actual requests
         add_header 'Access-Control-Allow-Origin' '*' always;
@@ -83,7 +143,7 @@ server {
     # API proxy configuration
     location /api/ {
         # Handle CORS preflight requests
-        if (\$request_method = OPTIONS) {
+        if ($request_method = OPTIONS) {
             add_header 'Access-Control-Allow-Origin' '*' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
@@ -95,16 +155,21 @@ server {
 
         # Proxy to backend application
         proxy_pass http://localhost:9092;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         
-        # Timeouts - increased for large file uploads
-        proxy_connect_timeout 30s;
-        proxy_send_timeout 300s;
-        proxy_read_timeout 300s;
-        send_timeout 300s;
+        # Extended timeouts for large file uploads (10 minutes)
+        proxy_connect_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_read_timeout 600s;
+        send_timeout 600s;
+        
+        # Large file upload settings
+        client_max_body_size 4G;
+        proxy_request_buffering off;
+        proxy_buffering off;
 
         # CORS headers for actual requests
         add_header 'Access-Control-Allow-Origin' '*' always;
@@ -115,10 +180,10 @@ server {
     # Health check endpoint
     location /health {
         proxy_pass http://localhost:9092;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         
         # No caching for health checks
         add_header Cache-Control "no-cache, no-store, must-revalidate";
@@ -128,38 +193,48 @@ server {
 
     location /metrics {        
         proxy_pass http://localhost:9092;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /gateway/metrics {
+        proxy_pass http://localhost:9093/api/v1/metrics;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # Static files
     location / {
-        try_files \$uri \$uri/ =404;
+        try_files $uri $uri/ =404;
         
         # Cache static files
         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
             expires 1y;
             add_header Cache-Control "public, immutable";
         }
-    }
 
-    # Deny access to hidden files
-    location ~ /\. {
-        deny all;
+        # Deny access to hidden files (only for static files)
+        location ~ /\. {
+            deny all;
+        }
     }
 }
 
 EOF
 
-echo "Testing Nginx configuration..."
-nginx -t
+rm -f /etc/nginx/sites-enabled/default
 
 echo "Enabling the site..."
 ln -sf "$NGINX_CONFIG" "$NGINX_ENABLED"
 
-rm -f /etc/nginx/sites-enabled/default
+echo "Testing Nginx configuration..."
+nginx -t
+
+echo "Configuration test passed!"
 
 chown -R www-data:www-data "$WEB_ROOT"
 chmod -R 755 "$WEB_ROOT"
