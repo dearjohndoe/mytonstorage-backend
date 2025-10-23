@@ -26,7 +26,7 @@ import (
 
 const (
 	providersLimit         = 256
-	providerRequestTimeout = 5 * time.Second
+	providerRequestTimeout = 7 * time.Second
 )
 
 type files interface {
@@ -48,11 +48,11 @@ type service struct {
 
 type Providers interface {
 	FetchProvidersRates(ctx context.Context, req v1.OffersRequest) (resp v1.ProviderRatesResponse, err error)
-	FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse)
+	FetchProvidersRatesBySize(ctx context.Context, providers []string, bagSize uint64, span uint32) (resp v1.ProviderRatesResponse)
 	InitStorageContract(ctx context.Context, info v1.InitStorageContractRequest, providers []v1.ProviderShort) (resp v1.Transaction, err error)
 	EditStorageContract(ctx context.Context, address string, amount uint64, providers []v1.ProviderShort) (resp v1.Transaction, err error)
 
-	fetchProviderRates(ctx context.Context, bagSize uint64, providerKey string) (offer *v1.ProviderOffer, reason string)
+	fetchProviderRates(ctx context.Context, providerKey string, bagSize uint64, span uint32) (offer *v1.ProviderOffer, reason string)
 }
 
 func (s *service) FetchProvidersRates(ctx context.Context, req v1.OffersRequest) (resp v1.ProviderRatesResponse, err error) {
@@ -83,19 +83,18 @@ func (s *service) FetchProvidersRates(ctx context.Context, req v1.OffersRequest)
 		bagSize = details.BagSize
 	}
 
-	resp = s.FetchProvidersRatesBySize(ctx, bagSize, req.Providers)
+	resp = s.FetchProvidersRatesBySize(ctx, req.Providers, bagSize, req.Span)
 
 	return resp, nil
 }
 
-func (s *service) FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse) {
+func (s *service) FetchProvidersRatesBySize(ctx context.Context, providers []string, bagSize uint64, span uint32) (resp v1.ProviderRatesResponse) {
 	for _, provider := range providers {
 		func() {
 			timeoutCtx, cancel := context.WithTimeout(ctx, providerRequestTimeout)
 			defer cancel()
 
-			// todo: add retries
-			rate, reason := s.fetchProviderRates(timeoutCtx, bagSize, provider)
+			rate, reason := s.fetchProviderRates(timeoutCtx, provider, bagSize, span)
 			if reason != "" {
 				resp.Declines = append(resp.Declines, v1.ProviderDecline{
 					ProviderKey: provider,
@@ -287,7 +286,7 @@ func (s *service) EditStorageContract(ctx context.Context, contractAddr string, 
 	return
 }
 
-func (s *service) fetchProviderRates(ctx context.Context, bagSize uint64, providerKey string) (offer *v1.ProviderOffer, reason string) {
+func (s *service) fetchProviderRates(ctx context.Context, providerKey string, bagSize uint64, span uint32) (offer *v1.ProviderOffer, reason string) {
 	log := s.logger.With(
 		"method", "fetchProviderRates",
 		"bag_size", bagSize,
@@ -300,7 +299,13 @@ func (s *service) fetchProviderRates(ctx context.Context, bagSize uint64, provid
 		return
 	}
 
-	rates, err := s.provider.GetStorageRates(ctx, pk, bagSize)
+	var rates *transport.StorageRatesResponse
+	err = utils.TryNTimes(func() error {
+		timeoutCtx, cancel := context.WithTimeout(ctx, providerRequestTimeout)
+		defer cancel()
+		rates, err = s.provider.GetStorageRates(timeoutCtx, pk, bagSize)
+		return err
+	}, 3)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			log.Error("provider rates request timed out", slog.String("error", err.Error()))
@@ -313,18 +318,19 @@ func (s *service) fetchProviderRates(ctx context.Context, bagSize uint64, provid
 		return
 	}
 
+	if rates == nil {
+		log.Error("provider returned empty rates")
+		reason = "not available"
+		return
+	}
+
 	if rates.SpaceAvailableMB < bagSize {
 		reason = "not enough space"
 		return
 	}
 
-	if uint64(rates.MaxSpan) > s.maxAllowedSpan {
-		rates.MaxSpan = uint32(s.maxAllowedSpan)
-	}
-
-	if rates.MinSpan > rates.MaxSpan {
-		rates.MinSpan = rates.MaxSpan
-	}
+	rates.MinSpan = span
+	rates.MaxSpan = span
 
 	if !rates.Available {
 		reason = "not available"

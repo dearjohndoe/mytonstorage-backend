@@ -18,8 +18,8 @@ func (c *providersCache) FetchProvidersRates(ctx context.Context, req v1.OffersR
 	return c.svc.FetchProvidersRates(ctx, req)
 }
 
-func (c *providersCache) FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse) {
-	return c.svc.FetchProvidersRatesBySize(ctx, bagSize, providers)
+func (c *providersCache) FetchProvidersRatesBySize(ctx context.Context, providers []string, bagSize uint64, span uint32) (resp v1.ProviderRatesResponse) {
+	return c.svc.FetchProvidersRatesBySize(ctx, providers, bagSize, span)
 }
 
 func (c *providersCache) InitStorageContract(ctx context.Context, info v1.InitStorageContractRequest, providers []v1.ProviderShort) (resp v1.Transaction, err error) {
@@ -30,15 +30,15 @@ func (c *providersCache) EditStorageContract(ctx context.Context, address string
 	return c.svc.EditStorageContract(ctx, address, amount, providers)
 }
 
-func (c *providersCache) fetchProviderRates(ctx context.Context, bagSize uint64, providerKey string) (offer *v1.ProviderOffer, reason string) {
-	key := fmt.Sprintf("pr_%s_%d", providerKey, bagSize)
+func (c *providersCache) fetchProviderRates(ctx context.Context, providerKey string, bagSize uint64, span uint32) (offer *v1.ProviderOffer, reason string) {
+	key := fmt.Sprintf("pr_%s_%d_%d", providerKey, bagSize, span)
 	if cached, ok := c.cache.Get(key); ok {
 		if offer, ok = cached.(*v1.ProviderOffer); ok {
 			return
 		}
 	}
 
-	offer, reason = c.svc.fetchProviderRates(ctx, bagSize, providerKey)
+	offer, reason = c.svc.fetchProviderRates(ctx, providerKey, bagSize, span)
 	if offer != nil && reason == "" {
 		c.cache.Set(key, offer)
 	}

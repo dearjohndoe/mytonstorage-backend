@@ -30,9 +30,9 @@ type UserBagInfo struct {
 }
 
 type LoginInfo struct {
+	StateInit []byte                 `json:"state_init"`
 	Address   string                 `json:"address"`
 	Proof     wallet.TonConnectProof `json:"proof"`
-	StateInit []byte                 `json:"state_init"`
 }
 
 type ProviderShort struct {
@@ -42,9 +42,10 @@ type ProviderShort struct {
 }
 
 type OffersRequest struct {
+	Providers []string `json:"providers"`
 	BagID     string   `json:"bag_id"`
 	BagSize   uint64   `json:"bag_size"`
-	Providers []string `json:"providers"`
+	Span      uint32   `json:"span"`
 }
 
 type ProviderContractData struct {
@@ -70,17 +71,18 @@ type UnpaidBagsResponse struct {
 }
 
 type InitStorageContractRequest struct {
+	ProvidersKeys []string `json:"providers"`
 	BagID         string   `json:"bag_id"`
 	OwnerAddress  string   `json:"owner_address"`
 	Amount        uint64   `json:"amount"`
-	ProvidersKeys []string `json:"providers"`
 }
 
 type UpdateProvidersRequest struct {
+	Providers       []string `json:"providers"`
 	ContractAddress string   `json:"address"`
 	BagSize         uint64   `json:"bag_size"`
 	Amount          uint64   `json:"amount"`
-	Providers       []string `json:"providers"`
+	Span            uint32   `json:"span"`
 }
 
 type ProviderOffer struct {

@@ -25,7 +25,7 @@ type contracts interface {
 
 type providers interface {
 	FetchProvidersRates(ctx context.Context, req v1.OffersRequest) (resp v1.ProviderRatesResponse, err error)
-	FetchProvidersRatesBySize(ctx context.Context, bagSize uint64, providers []string) (resp v1.ProviderRatesResponse)
+	FetchProvidersRatesBySize(ctx context.Context, providers []string, bagSize uint64, span uint32) (resp v1.ProviderRatesResponse)
 	InitStorageContract(ctx context.Context, info v1.InitStorageContractRequest, providers []v1.ProviderShort) (resp v1.Transaction, err error)
 	EditStorageContract(ctx context.Context, address string, amount uint64, providers []v1.ProviderShort) (resp v1.Transaction, err error)
 }
