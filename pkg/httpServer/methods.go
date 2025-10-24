@@ -273,7 +273,7 @@ func (h *handler) updateProviders(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid request")
 	}
 
-	rates := h.providers.FetchProvidersRatesBySize(c.Context(), req.BagSize, req.Providers)
+	rates := h.providers.FetchProvidersRatesBySize(c.Context(), req.Providers, req.BagSize, req.Span)
 	if len(rates.Offers) != len(req.Providers) {
 		log.Error("not all providers returned offers", slog.Int("expected", len(req.Providers)), slog.Int("received", len(rates.Offers)))
 		return fiber.NewError(fiber.StatusBadRequest, "some providers unavailable")
@@ -320,6 +320,7 @@ func (h *handler) initStorageContract(c *fiber.Ctx) error {
 	rates, err := h.providers.FetchProvidersRates(c.Context(), v1.OffersRequest{
 		BagID:     info.BagID,
 		Providers: info.ProvidersKeys,
+		Span:      info.Span,
 	})
 	if err != nil {
 		log.Error("failed to fetch providers rates", slog.Any("error", err))

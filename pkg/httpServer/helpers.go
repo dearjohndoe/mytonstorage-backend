@@ -2,6 +2,7 @@ package httpServer
 
 import (
 	"log/slog"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -25,6 +26,7 @@ func validateBagID(bagid string) bool {
 		return false
 	}
 
+	bagid = strings.ToLower(bagid)
 	for i := range 64 {
 		c := bagid[i]
 		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
