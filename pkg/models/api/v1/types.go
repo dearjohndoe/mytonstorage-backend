@@ -75,6 +75,7 @@ type InitStorageContractRequest struct {
 	BagID         string   `json:"bag_id"`
 	OwnerAddress  string   `json:"owner_address"`
 	Amount        uint64   `json:"amount"`
+	Span          uint32   `json:"span"`
 }
 
 type UpdateProvidersRequest struct {

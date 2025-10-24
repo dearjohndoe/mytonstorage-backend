@@ -320,6 +320,7 @@ func (h *handler) initStorageContract(c *fiber.Ctx) error {
 	rates, err := h.providers.FetchProvidersRates(c.Context(), v1.OffersRequest{
 		BagID:     info.BagID,
 		Providers: info.ProvidersKeys,
+		Span:      info.Span,
 	})
 	if err != nil {
 		log.Error("failed to fetch providers rates", slog.Any("error", err))
