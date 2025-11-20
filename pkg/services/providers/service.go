@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"math/rand"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/xssnick/tonutils-go/address"
@@ -89,24 +90,37 @@ func (s *service) FetchProvidersRates(ctx context.Context, req v1.OffersRequest)
 }
 
 func (s *service) FetchProvidersRatesBySize(ctx context.Context, providers []string, bagSize uint64, span uint32) (resp v1.ProviderRatesResponse) {
+	wg := sync.WaitGroup{}
+	mu := sync.Mutex{}
+
 	for _, provider := range providers {
+		wg.Add(1)
+
 		func() {
+			defer wg.Done()
+
 			timeoutCtx, cancel := context.WithTimeout(ctx, providerRequestTimeout)
 			defer cancel()
 
 			rate, reason := s.fetchProviderRates(timeoutCtx, provider, bagSize, span)
 			if reason != "" {
+				mu.Lock()
 				resp.Declines = append(resp.Declines, v1.ProviderDecline{
 					ProviderKey: provider,
 					Reason:      reason,
 				})
+				mu.Unlock()
 
 				return
 			}
 
+			mu.Lock()
 			resp.Offers = append(resp.Offers, *rate)
+			mu.Unlock()
 		}()
 	}
+
+	wg.Wait()
 
 	return
 }
