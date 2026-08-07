@@ -97,7 +97,7 @@ func (s *service) FetchProvidersRatesBySize(ctx context.Context, providers []str
 	for _, provider := range providers {
 		wg.Add(1)
 
-		func() {
+		go func() {
 			defer wg.Done()
 
 			timeoutCtx, cancel := context.WithTimeout(ctx, providerRequestTimeout)
